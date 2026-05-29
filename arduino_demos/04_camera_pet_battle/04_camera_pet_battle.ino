@@ -4,42 +4,38 @@
 #include <esp_wifi.h>
 #include <Preferences.h>
 #include <string.h>
+#include "battle_protocol.h"
+#include "pet_model.h"
+#include "ui_types.h"
+#include "vision_types.h"
 #include "trainer_intro_audio.h"
+#include "vision_model_data.h"
 
-#if defined(CORES3_ENABLE_ESP_SR)
-#include <model_path.h>
-#include <esp_mn_iface.h>
-#include <esp_mn_models.h>
-#include <esp_mn_speech_commands.h>
-#define CORES3_HAS_ESP_SR 1
-#else
-#define CORES3_HAS_ESP_SR 0
-#endif
-
-static constexpr size_t kSamples = 1024;
-static constexpr uint32_t kSampleRate = 16000;
-static constexpr uint32_t kCooldownMs = 1800;
-static constexpr uint32_t kWarmupMs = 1600;
-static constexpr int32_t kMinThreshold = 900;
-static constexpr float kSrMinConfidence = 0.48f;
-static constexpr uint8_t kMaxBackpackPets = 6;
+static constexpr uint32_t kPhotoCooldownMs = 1800;
 static constexpr uint32_t kGrowthIntervalSec = 30;
+static constexpr uint16_t kCaptureXp = 12;
+static constexpr uint32_t kBattleClashMs = 700;
+static constexpr uint32_t kRematchWindowSec = 180;
+static constexpr uint16_t kRematchXpStep = 5;
 static constexpr uint8_t kSoundVolume = 80;
 static constexpr uint8_t kUiSoundVolume = 66;
 static constexpr uint8_t kPetSoundVolume = 74;
 static constexpr uint8_t kMusicSoundVolume = 88;
 static constexpr uint16_t kSoundGapMs = 18;
+static constexpr bool kAudioMuted = false;
 static constexpr uint8_t kBattleWifiChannel = 6;
 static constexpr uint16_t kBattleUdpPort = 42105;
 static constexpr uint32_t kBattleScanIntervalMs = 4500;
 static constexpr uint32_t kBattleConnectRetryMs = 5000;
 static constexpr uint32_t kBattlePeerTimeoutMs = 12000;
+static constexpr uint32_t kBattleStatusLogIntervalMs = 2000;
 static constexpr char kBattleSsidPrefix[] = "M5PET-";
+static const uint8_t kKnownCom8Mac[6] = {0x44, 0x1B, 0xF6, 0xE3, 0x9A, 0xFC};
+static const uint8_t kKnownCom7Mac[6] = {0x44, 0x1B, 0xF6, 0xE3, 0x9B, 0x60};
+static constexpr uint8_t kMinPresenceScore = 42;
+static constexpr uint8_t kMinRecognitionConfidence = 48;
 
-static int16_t mic_buffer[kSamples];
-static int32_t voice_threshold = 2200;
 static uint32_t last_shot_ms = 0;
-static uint32_t last_voice_command_ms = 0;
 static uint32_t shot_count = 0;
 static bool camera_ok = false;
 static uint32_t device_id = 0;
@@ -52,345 +48,61 @@ static uint16_t battle_packets_seen = 0;
 static uint16_t battle_send_failures = 0;
 static bool battle_wifi_started = false;
 static bool battle_udp_started = false;
+static uint8_t device_mac[6] = {};
 static uint32_t battle_peer_id = 0;
 static uint32_t last_battle_scan_ms = 0;
 static uint32_t last_battle_connect_ms = 0;
+static uint32_t last_battle_status_log_ms = 0;
+static bool battle_scan_running = false;
 static IPAddress battle_peer_ip;
 static WiFiUDP battle_udp;
 static char battle_ap_ssid[20] = {};
 static char battle_peer_ssid[20] = {};
 static uint32_t display_hold_until_ms = 0;
-static bool mic_active = false;
-static int32_t last_voice_level = 0;
+static int8_t vision_input[kVisionInputBytes] = {};
+static uint32_t last_vision_preprocess_ms = 0;
+static uint32_t last_vision_classify_ms = 0;
 static Preferences prefs;
-
-enum VoiceCommand : uint8_t {
-    kVoiceNone = 0,
-    kVoicePhoto = 1,
-    kVoiceBag = 2,
-    kVoiceBack = 3,
-    kVoiceBattle = 4,
-};
-
-#if CORES3_HAS_ESP_SR
-static srmodel_list_t* sr_models = nullptr;
-static esp_mn_iface_t* sr_multinet = nullptr;
-static model_iface_data_t* sr_model_data = nullptr;
-static int sr_chunk_samples = 0;
-#endif
-static bool sr_ready = false;
-
-enum ElementType : uint8_t {
-    kWood = 0,
-    kFire,
-    kEarth,
-    kMetal,
-    kWater,
-};
-
-struct ImageTraits {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    int32_t brightness;
-    int32_t saturation;
-    int32_t contrast;
-    int32_t confidence;
-    ElementType element;
-    uint32_t seed;
-};
-
-struct RecognitionResult {
-    const char* objectLabel;
-    const char* materialLabel;
-    uint8_t confidence;
-};
-
-struct PetHint {
-    bool valid;
-    ElementType preferredElement;
-    uint8_t preferredSpecies;
-    uint8_t styleBias;
-};
-
-struct PetGenes {
-    ElementType element;
-    uint8_t species;
-    uint8_t mood;
-    uint8_t bodyScale;
-    uint8_t eyeStyle;
-    uint8_t hornStyle;
-    uint8_t tailStyle;
-    uint8_t auraPattern;
-    uint8_t patternDensity;
-    uint16_t accentColor;
-    uint32_t seed;
-};
-
-enum ScreenMode : uint8_t {
-    kScreenIdle = 0,
-    kScreenWild,
-    kScreenBag,
-    kScreenReleaseConfirm,
-    kScreenMatch,
-    kScreenBattle,
-};
-
-enum UiAction : uint8_t {
-    kActionNone = 0,
-    kActionPhoto,
-    kActionOpenBag,
-    kActionBackToIdle,
-    kActionPrevPet,
-    kActionNextPet,
-    kActionSelectPet,
-    kActionCapturePet,
-    kActionReleasePet,
-    kActionReleaseStoredPet,
-    kActionConfirmReleaseStoredPet,
-    kActionMatchBattle,
-};
-
-enum BattleLinkRole : uint8_t {
-    kBattleRoleHost = 0,
-    kBattleRoleClient,
-};
-
-enum ButtonSlot : uint8_t {
-    kButtonLeft = 0,
-    kButtonMiddle,
-    kButtonRight,
-};
-
-struct SavedPet {
-    PetGenes genes;
-    uint8_t level;
-    uint8_t stage;
-    uint16_t xp;
-    uint16_t battles;
-    uint16_t wins;
-    uint32_t capturedAtSec;
-    uint32_t lastGrowthSec;
-};
-
-struct BackpackStorage {
-    uint32_t magic;
-    uint8_t version;
-    uint8_t count;
-    uint8_t selected;
-    uint8_t reserved;
-    SavedPet pets[kMaxBackpackPets];
-};
-
-#pragma pack(push, 1)
-struct BattlePetPacket {
-    uint32_t magic;
-    uint8_t version;
-    uint8_t element;
-    uint8_t species;
-    uint8_t level;
-    uint8_t mood;
-    uint8_t bodyScale;
-    uint8_t eyeStyle;
-    uint8_t hornStyle;
-    uint8_t tailStyle;
-    uint8_t auraPattern;
-    uint8_t patternDensity;
-    uint16_t accentColor;
-    uint32_t seed;
-    uint32_t deviceId;
-    uint32_t seq;
-    uint16_t power;
-    uint16_t agility;
-    uint16_t spirit;
-};
-#pragma pack(pop)
-
-static constexpr uint32_t kBattleMagic = 0x57355054UL; // W5PT
-static constexpr uint8_t kBattleVersion = 1;
-static constexpr uint32_t kBagMagic = 0x57354247UL; // W5BG
-static constexpr uint8_t kBagVersion = 1;
 
 static PetGenes local_pet = {};
 static bool has_local_pet = false;
 static PetGenes wild_pet = {};
 static ImageTraits wild_traits = {};
+static RecognitionResult wild_recognition = {};
 static bool has_wild_pet = false;
 static BackpackStorage backpack = {};
 static ScreenMode screen_mode = kScreenIdle;
 static uint8_t bag_cursor = 0;
 static BattlePetPacket last_opponent_packet = {};
+static BattlePetPacket pending_battle_packet = {};
 static volatile bool opponent_packet_pending = false;
+static bool battle_result_pending = false;
+static uint32_t battle_result_due_ms = 0;
 static uint32_t battle_sequence = 0;
 static uint32_t local_pet_sequence = 0;
 static uint32_t last_battle_key = 0;
 static uint32_t last_growth_check_ms = 0;
+static uint32_t last_friend_peer_id = 0;
+static uint32_t last_friend_battle_sec = 0;
+static uint8_t friend_rematch_streak = 0;
 static BattleLinkRole battle_link_role = kBattleRoleHost;
+enum BattleRuntimeState : uint8_t {
+    kBattleStateDiscovering = 0,
+    kBattleStatePairing,
+    kBattleStateReady,
+    kBattleStateBattling,
+    kBattleStateRetrying,
+};
+static BattleRuntimeState battle_runtime_state = kBattleStateDiscovering;
 
 static void take_photo(const char* reason);
 static void handle_ui_action(uint8_t action);
 static void draw_idle_screen(const char* message, bool playSound);
 static void draw_bag_screen(const char* message);
+static void draw_capture_fail(const ImageTraits& traits, const RecognitionResult& recog);
 
 void handle_external_action(uint8_t action);
 void handle_external_button(uint8_t button);
-
-static bool start_mic()
-{
-    if (mic_active) {
-        return true;
-    }
-    mic_active = CoreS3.Mic.begin();
-    return mic_active;
-}
-
-static void stop_mic()
-{
-    while (CoreS3.Mic.isRecording()) {
-        CoreS3.delay(1);
-    }
-    if (mic_active) {
-        CoreS3.Mic.end();
-        mic_active = false;
-    }
-}
-
-static int32_t compute_voice_level(const int16_t* samples, size_t count)
-{
-    if (count == 0) {
-        return 0;
-    }
-
-    int64_t sum = 0;
-    for (size_t i = 0; i < count; ++i) {
-        sum += samples[i];
-    }
-    const int32_t mean = sum / static_cast<int32_t>(count);
-
-    int64_t abs_sum = 0;
-    for (size_t i = 0; i < count; ++i) {
-        abs_sum += abs(static_cast<int32_t>(samples[i]) - mean);
-    }
-    return abs_sum / static_cast<int32_t>(count);
-}
-
-static int32_t measure_voice_level()
-{
-    if (!mic_active) {
-        return 0;
-    }
-    if (!CoreS3.Mic.record(mic_buffer, kSamples, kSampleRate)) {
-        return 0;
-    }
-
-    last_voice_level = compute_voice_level(mic_buffer, kSamples);
-    return last_voice_level;
-}
-
-static const char* voice_command_label(VoiceCommand command)
-{
-    switch (command) {
-    case kVoicePhoto:
-        return "pai zhao";
-    case kVoiceBag:
-        return "bei bao";
-    case kVoiceBack:
-        return "fan hui";
-    case kVoiceBattle:
-        return "dui zhan";
-    default:
-        return "none";
-    }
-}
-
-static bool init_offline_command_recognition()
-{
-#if CORES3_HAS_ESP_SR
-    sr_models = esp_srmodel_init("model");
-    if (!sr_models) {
-        return false;
-    }
-
-    char* model_name = esp_srmodel_filter(sr_models, ESP_MN_PREFIX, ESP_MN_CHINESE);
-    if (!model_name) {
-        model_name = esp_srmodel_filter(sr_models, ESP_MN_PREFIX, nullptr);
-    }
-    if (!model_name) {
-        return false;
-    }
-
-    sr_multinet = esp_mn_handle_from_name(model_name);
-    if (!sr_multinet) {
-        return false;
-    }
-
-    sr_model_data = sr_multinet->create(model_name, 6000);
-    if (!sr_model_data) {
-        return false;
-    }
-
-    sr_chunk_samples = sr_multinet->get_samp_chunksize(sr_model_data);
-    if (sr_chunk_samples <= 0 || static_cast<size_t>(sr_chunk_samples) > kSamples) {
-        return false;
-    }
-
-    if (esp_mn_commands_alloc(sr_multinet, sr_model_data) != ESP_OK) {
-        return false;
-    }
-    esp_mn_commands_clear();
-    esp_mn_commands_add(kVoicePhoto, "pai zhao");
-    esp_mn_commands_add(kVoiceBag, "bei bao");
-    esp_mn_commands_add(kVoiceBack, "fan hui");
-    esp_mn_commands_add(kVoiceBattle, "dui zhan");
-    esp_mn_error_t* command_errors = esp_mn_commands_update();
-    if (command_errors != nullptr) {
-        return false;
-    }
-
-    sr_multinet->set_det_threshold(sr_model_data, kSrMinConfidence);
-    sr_multinet->clean(sr_model_data);
-    return true;
-#else
-    return false;
-#endif
-}
-
-static VoiceCommand recognize_voice_command_local()
-{
-#if CORES3_HAS_ESP_SR
-    if (!sr_ready || !mic_active || !sr_multinet || !sr_model_data) {
-        return kVoiceNone;
-    }
-    if (sr_chunk_samples <= 0 || static_cast<size_t>(sr_chunk_samples) > kSamples) {
-        return kVoiceNone;
-    }
-    if (!CoreS3.Mic.record(mic_buffer, sr_chunk_samples, kSampleRate)) {
-        return kVoiceNone;
-    }
-
-    last_voice_level = compute_voice_level(mic_buffer, sr_chunk_samples);
-    const esp_mn_state_t state = sr_multinet->detect(sr_model_data, mic_buffer);
-    if (state == ESP_MN_STATE_TIMEOUT) {
-        sr_multinet->clean(sr_model_data);
-        return kVoiceNone;
-    }
-    if (state != ESP_MN_STATE_DETECTED) {
-        return kVoiceNone;
-    }
-
-    esp_mn_results_t* result = sr_multinet->get_results(sr_model_data);
-    sr_multinet->clean(sr_model_data);
-    if (!result || result->num <= 0 || result->prob[0] < kSrMinConfidence) {
-        return kVoiceNone;
-    }
-
-    const int command_id = result->command_id[0];
-    if (command_id >= kVoicePhoto && command_id <= kVoiceBattle) {
-        return static_cast<VoiceCommand>(command_id);
-    }
-#endif
-    return kVoiceNone;
-}
 
 static void draw_status(const char* line1, const char* line2, uint32_t color)
 {
@@ -500,13 +212,14 @@ static uint8_t sound_volume_for_cue(uint8_t cue)
 
 static void play_notes_at_volume(const uint16_t* notes, const uint16_t* durations, size_t count, uint8_t volume)
 {
+    if (kAudioMuted) {
+        return;
+    }
     if (count == 0) {
         return;
     }
 
-    stop_mic();
     if (!CoreS3.Speaker.begin()) {
-        start_mic();
         return;
     }
     CoreS3.Speaker.setVolume(volume);
@@ -518,7 +231,6 @@ static void play_notes_at_volume(const uint16_t* notes, const uint16_t* duration
     }
     CoreS3.Speaker.stop();
     CoreS3.Speaker.end();
-    start_mic();
 }
 
 static void play_notes(const uint16_t* notes, const uint16_t* durations, size_t count)
@@ -546,9 +258,10 @@ static uint16_t shifted_note(uint16_t note, int16_t shift)
 
 static void play_trainer_intro_sample()
 {
-    stop_mic();
+    if (kAudioMuted) {
+        return;
+    }
     if (!CoreS3.Speaker.begin()) {
-        start_mic();
         return;
     }
     CoreS3.Speaker.setVolume(kMusicSoundVolume);
@@ -556,7 +269,6 @@ static void play_trainer_intro_sample()
     CoreS3.delay((kTrainerIntroPcmLen * 1000UL) / kTrainerIntroSampleRate + 80);
     CoreS3.Speaker.stop();
     CoreS3.Speaker.end();
-    start_mic();
 }
 
 static bool play_layered_scene_sound(uint8_t cue)
@@ -644,6 +356,9 @@ static bool play_layered_scene_sound(uint8_t cue)
 
 static void play_scene_sound(uint8_t cue)
 {
+    if (kAudioMuted) {
+        return;
+    }
     const uint8_t cueId = cue;
     if (try_play_external_scene_sound(cueId)) {
         return;
@@ -767,6 +482,9 @@ static bool play_rich_pet_sound(const PetGenes& genes, uint8_t level, uint8_t st
 
 static void play_pet_sound(const PetGenes& genes, uint8_t level, uint8_t stage)
 {
+    if (kAudioMuted) {
+        return;
+    }
     if (play_rich_pet_sound(genes, level, stage)) {
         return;
     }
@@ -833,6 +551,69 @@ static void play_pet_sound(const PetGenes& genes, uint8_t level, uint8_t stage)
     }
 }
 
+static void rgb565_to_rgb(uint16_t color, uint8_t& r, uint8_t& g, uint8_t& b)
+{
+    r = ((color >> 11) & 0x1F) * 255 / 31;
+    g = ((color >> 5) & 0x3F) * 255 / 63;
+    b = (color & 0x1F) * 255 / 31;
+}
+
+static int32_t rgb_luma(uint8_t r, uint8_t g, uint8_t b)
+{
+    return (r * 30 + g * 59 + b * 11) / 100;
+}
+
+static int32_t rgb_chroma(uint8_t r, uint8_t g, uint8_t b)
+{
+    return max(max(r, g), b) - min(min(r, g), b);
+}
+
+static bool preprocess_frame_for_vision()
+{
+    uint32_t start = millis();
+    memset(vision_input, 0, sizeof(vision_input));
+    last_vision_preprocess_ms = 0;
+
+    if (CoreS3.Camera.fb == nullptr || CoreS3.Camera.fb->len < 2) {
+        return false;
+    }
+
+    const uint16_t* pixels = reinterpret_cast<const uint16_t*>(CoreS3.Camera.fb->buf);
+    const size_t pixelCount = CoreS3.Camera.fb->len / 2;
+    int32_t frameW = CoreS3.Camera.fb->width;
+    int32_t frameH = CoreS3.Camera.fb->height;
+    if (frameW <= 0 || frameH <= 0 || static_cast<size_t>(frameW * frameH) > pixelCount) {
+        frameW = CoreS3.Display.width();
+        frameH = pixelCount / max<int32_t>(1, frameW);
+    }
+    if (frameW <= 0 || frameH <= 0) {
+        return false;
+    }
+
+    for (uint16_t y = 0; y < kVisionInputHeight; ++y) {
+        int32_t srcY = min<int32_t>(frameH - 1, (static_cast<int32_t>(y) * frameH) / kVisionInputHeight);
+        for (uint16_t x = 0; x < kVisionInputWidth; ++x) {
+            int32_t srcX = min<int32_t>(frameW - 1, (static_cast<int32_t>(x) * frameW) / kVisionInputWidth);
+            size_t srcIndex = static_cast<size_t>(srcY) * frameW + srcX;
+            if (srcIndex >= pixelCount) {
+                continue;
+            }
+
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            rgb565_to_rgb(pixels[srcIndex], r, g, b);
+            size_t dst = (static_cast<size_t>(y) * kVisionInputWidth + x) * kVisionInputChannels;
+            vision_input[dst] = static_cast<int8_t>(static_cast<int16_t>(r) - 128);
+            vision_input[dst + 1] = static_cast<int8_t>(static_cast<int16_t>(g) - 128);
+            vision_input[dst + 2] = static_cast<int8_t>(static_cast<int16_t>(b) - 128);
+        }
+    }
+
+    last_vision_preprocess_ms = millis() - start;
+    return true;
+}
+
 static ImageTraits analyze_frame()
 {
     ImageTraits traits = {};
@@ -857,6 +638,15 @@ static ImageTraits analyze_frame()
     int64_t sum_b = 0;
     int64_t sum_luma = 0;
     int64_t sum_luma_delta = 0;
+    int64_t center_luma_sum = 0;
+    int64_t edge_luma_sum = 0;
+    int64_t center_chroma_sum = 0;
+    int64_t edge_chroma_sum = 0;
+    int32_t center_count = 0;
+    int32_t edge_count = 0;
+    int32_t dark_count = 0;
+    int32_t bright_count = 0;
+    int32_t sample_count = 0;
     int32_t min_luma = 255;
     int32_t max_luma = 0;
     uint32_t seed = 2166136261UL;
@@ -871,18 +661,19 @@ static ImageTraits analyze_frame()
             }
 
             uint16_t c = pixels[i];
-            uint8_t r = ((c >> 11) & 0x1F) * 255 / 31;
-            uint8_t g = ((c >> 5) & 0x3F) * 255 / 63;
-            uint8_t b = (c & 0x1F) * 255 / 31;
-            int32_t max_c = max(max(r, g), b);
-            int32_t min_c = min(min(r, g), b);
-            int32_t chroma = max_c - min_c;
-            int32_t luma = (r * 30 + g * 59 + b * 11) / 100;
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            rgb565_to_rgb(c, r, g, b);
+            int32_t chroma = rgb_chroma(r, g, b);
+            int32_t luma = rgb_luma(r, g, b);
             int32_t dx = abs(x - frame_w / 2);
             int32_t dy = abs(y - frame_h / 2);
             int32_t weight = 1;
+            bool centerSample = false;
             if (dx < frame_w / 3 && dy < frame_h / 3) {
                 weight += 2;
+                centerSample = true;
             }
             if (dx < frame_w / 6 && dy < frame_h / 6) {
                 weight += 2;
@@ -897,6 +688,22 @@ static ImageTraits analyze_frame()
             seed ^= (static_cast<uint32_t>(c) + i + static_cast<uint32_t>(weight << 24));
             seed *= 16777619UL;
             weight_sum += weight;
+            ++sample_count;
+            if (luma < 42) {
+                ++dark_count;
+            }
+            if (luma > 210) {
+                ++bright_count;
+            }
+            if (centerSample) {
+                center_luma_sum += luma;
+                center_chroma_sum += chroma;
+                ++center_count;
+            } else {
+                edge_luma_sum += luma;
+                edge_chroma_sum += chroma;
+                ++edge_count;
+            }
 
             if (chroma < 22) {
                 if (luma > 158) {
@@ -937,15 +744,26 @@ static ImageTraits analyze_frame()
     traits.brightness = sum_luma / weight_sum;
     traits.contrast = max_luma - min_luma;
     traits.saturation = max(max(traits.r, traits.g), traits.b) - min(min(traits.r, traits.g), traits.b);
+    traits.centerBrightness = center_luma_sum / max<int32_t>(1, center_count);
+    traits.edgeBrightness = edge_luma_sum / max<int32_t>(1, edge_count);
+    traits.centerSaturation = center_chroma_sum / max<int32_t>(1, center_count);
+    traits.edgeSaturation = edge_chroma_sum / max<int32_t>(1, edge_count);
+    traits.centerDelta = abs(traits.centerBrightness - traits.edgeBrightness) +
+                         abs(traits.centerSaturation - traits.edgeSaturation) / 2;
+    traits.darkRatio = (dark_count * 100) / max<int32_t>(1, sample_count);
+    traits.brightRatio = (bright_count * 100) / max<int32_t>(1, sample_count);
+    traits.frameWidth = frame_w;
+    traits.frameHeight = frame_h;
 
     const size_t delta_step = max<size_t>(1, pixel_count / 900);
     size_t delta_count = 0;
     for (size_t i = 0; i < pixel_count; i += delta_step) {
         uint16_t c = pixels[i];
-        uint8_t r = ((c >> 11) & 0x1F) * 255 / 31;
-        uint8_t g = ((c >> 5) & 0x3F) * 255 / 63;
-        uint8_t b = (c & 0x1F) * 255 / 31;
-        int32_t luma = (r * 30 + g * 59 + b * 11) / 100;
+        uint8_t r = 0;
+        uint8_t g = 0;
+        uint8_t b = 0;
+        rgb565_to_rgb(c, r, g, b);
+        int32_t luma = rgb_luma(r, g, b);
         sum_luma_delta += abs(luma - traits.brightness);
         ++delta_count;
     }
@@ -1083,31 +901,267 @@ static uint16_t element_accent_color(ElementType element)
     return TFT_WHITE;
 }
 
-static RecognitionResult recognize_object_local(const ImageTraits& traits)
+static const char* object_class_label(uint8_t classId)
 {
-    RecognitionResult result = {};
-    result.confidence = min<int32_t>(99, max<int32_t>(30, traits.confidence / 12));
+    switch (classId) {
+    case kObjectPlantLeaf: return "plant_leaf";
+    case kObjectFoodFruit: return "food_fruit";
+    case kObjectPaperBook: return "paper_book";
+    case kObjectElectronicsScreen: return "electronics_screen";
+    case kObjectMetalKeyCoin: return "metal_key_coin";
+    case kObjectFabricCloth: return "fabric_cloth";
+    case kObjectCupBottleWater: return "cup_bottle_water";
+    case kObjectToyFigure: return "toy_figure";
+    default: return "unknown";
+    }
+}
 
-    if (traits.saturation < 35 && traits.brightness > 150) {
-        result.objectLabel = "bright object";
-        result.materialLabel = "metal-like";
-    } else if (traits.b > max(traits.r, traits.g) + 12) {
-        result.objectLabel = "cool object";
-        result.materialLabel = "water-like";
-    } else if (traits.g > max(traits.r, traits.b) + 10) {
-        result.objectLabel = "green object";
-        result.materialLabel = "plant-like";
-    } else if (traits.r > traits.b + 18 && traits.r > traits.g + 8) {
-        result.objectLabel = "warm object";
-        result.materialLabel = "flame-like";
-    } else if (traits.r > traits.b && traits.g > traits.b) {
-        result.objectLabel = "earthy object";
-        result.materialLabel = "stone-like";
-    } else {
-        result.objectLabel = "mixed object";
-        result.materialLabel = "unknown";
+static const char* material_label_for_class(uint8_t classId)
+{
+    switch (classId) {
+    case kObjectPlantLeaf: return "plant";
+    case kObjectFoodFruit: return "organic";
+    case kObjectPaperBook: return "paper";
+    case kObjectElectronicsScreen: return "electronic";
+    case kObjectMetalKeyCoin: return "metal";
+    case kObjectFabricCloth: return "fabric";
+    case kObjectCupBottleWater: return "water-container";
+    case kObjectToyFigure: return "toy";
+    default: return "unknown";
+    }
+}
+
+static ElementType element_hint_for_class(uint8_t classId, const ImageTraits& traits)
+{
+    switch (classId) {
+    case kObjectPlantLeaf:
+        return kWood;
+    case kObjectFoodFruit:
+        return (traits.brightness < 105 || traits.r > traits.g + 36) ? kEarth : kWood;
+    case kObjectPaperBook:
+        return (traits.brightness > 154 && traits.saturation < 44) ? kWood : kEarth;
+    case kObjectElectronicsScreen:
+        return (traits.darkRatio > 35) ? kWater : kMetal;
+    case kObjectMetalKeyCoin:
+        return kMetal;
+    case kObjectFabricCloth:
+        return (traits.g > traits.r && traits.g > traits.b) ? kWood : kEarth;
+    case kObjectCupBottleWater:
+        return kWater;
+    case kObjectToyFigure:
+        return (traits.r > traits.b + 16) ? kFire : kMetal;
+    default:
+        return traits.element;
+    }
+}
+
+static uint8_t species_bias_for_class(uint8_t classId, const ImageTraits& traits)
+{
+    (void)traits;
+    switch (classId) {
+    case kObjectPlantLeaf: return 0;
+    case kObjectFoodFruit: return 1;
+    case kObjectPaperBook: return 2;
+    case kObjectElectronicsScreen: return 1;
+    case kObjectMetalKeyCoin: return 2;
+    case kObjectFabricCloth: return 0;
+    case kObjectCupBottleWater: return 2;
+    case kObjectToyFigure: return 1;
+    default: return 0;
+    }
+}
+
+static SubjectPresence detect_subject_presence(const ImageTraits& traits)
+{
+    SubjectPresence presence = {};
+    presence.reason = "No subject";
+
+    if (traits.frameWidth <= 0 || traits.frameHeight <= 0) {
+        presence.reason = "No frame";
+        return presence;
+    }
+    if (traits.brightness < 32 || traits.darkRatio > 82) {
+        presence.reason = "Too dark";
+        presence.score = clamp_u8(traits.contrast / 2 + traits.centerDelta);
+        return presence;
+    }
+    if (traits.brightRatio > 92 && traits.contrast < 22) {
+        presence.reason = "Too bright";
+        presence.score = clamp_u8(traits.centerDelta + traits.contrast);
+        return presence;
+    }
+    if (traits.contrast < 18 && traits.centerDelta < 12 && traits.saturation < 42) {
+        presence.reason = "Flat scene";
+        presence.score = clamp_u8(traits.contrast + traits.centerDelta);
+        return presence;
+    }
+    if (abs(traits.centerBrightness - traits.edgeBrightness) < 6 &&
+        abs(traits.centerSaturation - traits.edgeSaturation) < 6 &&
+        traits.contrast < 26) {
+        presence.reason = "No centered subject";
+        presence.score = clamp_u8(traits.contrast + traits.saturation / 3);
+        return presence;
     }
 
+    int32_t score = traits.centerDelta * 2 + traits.contrast / 2 + traits.saturation / 3;
+    score += abs(traits.centerBrightness - traits.edgeBrightness) / 2;
+    if (traits.centerSaturation > traits.edgeSaturation + 8) {
+        score += 12;
+    }
+    if (traits.contrast < 16 && traits.centerDelta < 13) {
+        score -= 32;
+    }
+    if (traits.saturation < 16 && traits.contrast < 28) {
+        score -= 18;
+    }
+
+    presence.score = clamp_u8(score);
+    presence.present = presence.score >= kMinPresenceScore;
+    presence.reason = presence.present ? "Subject centered" : "No clear subject";
+    return presence;
+}
+
+static int16_t normalized_feature(int32_t value)
+{
+    return static_cast<int16_t>(max<int32_t>(-kVisionFeatureScale,
+                                            min<int32_t>(kVisionFeatureScale,
+                                                        (value * kVisionFeatureScale) / 128 - kVisionFeatureScale)));
+}
+
+static void build_vision_features(const ImageTraits& traits, int16_t* features)
+{
+    features[0] = normalized_feature(traits.r);
+    features[1] = normalized_feature(traits.g);
+    features[2] = normalized_feature(traits.b);
+    features[3] = normalized_feature(traits.brightness);
+    features[4] = normalized_feature(traits.saturation);
+    features[5] = normalized_feature(traits.contrast);
+    features[6] = normalized_feature(traits.centerDelta);
+    features[7] = normalized_feature((traits.darkRatio * 255) / 100);
+    features[8] = normalized_feature((traits.brightRatio * 255) / 100);
+    features[9] = normalized_feature(traits.centerSaturation - traits.edgeSaturation + 128);
+}
+
+static bool run_embedded_vision_model(const int8_t* input, const ImageTraits& traits, RecognitionResult* result)
+{
+    (void)input;
+    if (result == nullptr || kVisionClassCount != 8 || kVisionFeatureCount != 10 || kVisionModelDataLen == 0) {
+        return false;
+    }
+
+    int16_t features[kVisionFeatureCount] = {};
+    build_vision_features(traits, features);
+
+    int32_t logits[kVisionClassCount] = {};
+    for (uint8_t c = 0; c < kVisionClassCount; ++c) {
+        int32_t score = kVisionBias[c];
+        for (uint8_t i = 0; i < kVisionFeatureCount; ++i) {
+            score += static_cast<int32_t>(kVisionWeights[c][i]) * features[i];
+        }
+        logits[c] = score;
+    }
+
+    uint8_t best = 0;
+    uint8_t second = 1;
+    if (logits[second] > logits[best]) {
+        uint8_t tmp = best;
+        best = second;
+        second = tmp;
+    }
+    for (uint8_t c = 2; c < kVisionClassCount; ++c) {
+        if (logits[c] > logits[best]) {
+            second = best;
+            best = c;
+        } else if (logits[c] > logits[second]) {
+            second = c;
+        }
+    }
+
+    uint8_t classId = static_cast<uint8_t>(best + 1);
+    int32_t margin = (logits[best] - logits[second]) / 256;
+    result->classId = classId;
+    result->objectLabel = object_class_label(classId);
+    result->materialLabel = material_label_for_class(classId);
+    result->elementHint = element_hint_for_class(classId, traits);
+    result->speciesBias = species_bias_for_class(classId, traits);
+    result->confidence = clamp_u8(36 + margin / 5 + result->presenceScore / 4);
+    result->recognized = result->confidence >= kMinRecognitionConfidence;
+    result->failureReason = result->recognized ? "" : "Low model confidence";
+    return true;
+}
+
+static RecognitionResult classify_object_local(const ImageTraits& traits, const SubjectPresence& presence)
+{
+    RecognitionResult result = {};
+    result.objectLabel = object_class_label(kObjectUnknown);
+    result.materialLabel = material_label_for_class(kObjectUnknown);
+    result.failureReason = presence.reason;
+    result.presenceScore = presence.score;
+    result.elementHint = traits.element;
+
+    if (!presence.present) {
+        return result;
+    }
+    if (run_embedded_vision_model(vision_input, traits, &result)) {
+        result.recognized = result.confidence >= kMinRecognitionConfidence;
+        result.failureReason = result.recognized ? "" : "Low model confidence";
+        if (result.recognized) {
+            return result;
+        }
+    }
+
+    int32_t redDominance = static_cast<int32_t>(traits.r) - max(traits.g, traits.b);
+    int32_t greenDominance = static_cast<int32_t>(traits.g) - max(traits.r, traits.b);
+    int32_t blueDominance = static_cast<int32_t>(traits.b) - max(traits.r, traits.g);
+    int32_t warm = static_cast<int32_t>(traits.r) + traits.g - traits.b * 2;
+    int32_t lowSaturation = max<int32_t>(0, 75 - traits.saturation);
+    int32_t highBrightness = max<int32_t>(0, traits.brightness - 132);
+    int32_t midBrightness = max<int32_t>(0, 95 - abs(traits.brightness - 125));
+
+    int32_t scores[9] = {};
+    scores[kObjectPlantLeaf] = max<int32_t>(0, greenDominance + 32) * 3 + traits.saturation + presence.score;
+    scores[kObjectFoodFruit] = max<int32_t>(0, redDominance + 24) * 2 + max<int32_t>(0, warm + 36) + traits.saturation;
+    scores[kObjectPaperBook] = highBrightness * 2 + lowSaturation * 2 + max<int32_t>(0, traits.centerDelta - 10);
+    scores[kObjectElectronicsScreen] = traits.darkRatio * 3 + traits.contrast + max<int32_t>(0, blueDominance + 22) * 2;
+    scores[kObjectMetalKeyCoin] = lowSaturation * 3 + highBrightness * 2 + traits.contrast;
+    scores[kObjectFabricCloth] = midBrightness + traits.saturation * 2 + max<int32_t>(0, 80 - traits.contrast);
+    scores[kObjectCupBottleWater] = max<int32_t>(0, blueDominance + 34) * 3 + highBrightness + traits.centerDelta;
+    scores[kObjectToyFigure] = traits.saturation * 2 + traits.contrast + max<int32_t>(0, abs(redDominance - blueDominance));
+
+    uint8_t best = kObjectPlantLeaf;
+    uint8_t second = kObjectFoodFruit;
+    if (scores[second] > scores[best]) {
+        uint8_t tmp = best;
+        best = second;
+        second = tmp;
+    }
+    for (uint8_t i = kObjectPaperBook; i <= kObjectToyFigure; ++i) {
+        if (scores[i] > scores[best]) {
+            second = best;
+            best = i;
+        } else if (i != best && scores[i] > scores[second]) {
+            second = i;
+        }
+    }
+
+    int32_t margin = scores[best] - scores[second];
+    result.classId = best;
+    result.objectLabel = object_class_label(best);
+    result.materialLabel = material_label_for_class(best);
+    result.elementHint = element_hint_for_class(best, traits);
+    result.speciesBias = species_bias_for_class(best, traits);
+    result.confidence = clamp_u8(28 + margin / 5 + presence.score / 3);
+    result.recognized = result.confidence >= kMinRecognitionConfidence;
+    result.failureReason = result.recognized ? "" : "Low class confidence";
+    return result;
+}
+
+static RecognitionResult recognize_object_local(const ImageTraits& traits)
+{
+    uint32_t start = millis();
+    SubjectPresence presence = detect_subject_presence(traits);
+    RecognitionResult result = classify_object_local(traits, presence);
+    last_vision_classify_ms = millis() - start;
     return result;
 }
 
@@ -1130,41 +1184,54 @@ static bool save_pet_snapshot(const PetGenes& genes, const ImageTraits& traits)
 static PetGenes merge_generation_inputs(ImageTraits traits, RecognitionResult recog, PetHint remoteHint)
 {
     PetGenes genes = {};
-    genes.element = remoteHint.valid ? remoteHint.preferredElement : traits.element;
-    genes.species = remoteHint.valid ? (remoteHint.preferredSpecies % 3) : 0;
-    genes.mood = (traits.brightness > 168) ? 0 : ((traits.saturation < 38) ? 1 : ((traits.contrast > 150) ? 3 : 2));
-    genes.bodyScale = clamp_u8(82 + traits.saturation / 4 + traits.contrast / 12);
-    genes.eyeStyle = (traits.brightness / 52 + recog.confidence / 33) % 4;
-    genes.hornStyle = (traits.contrast / 48 + remoteHint.styleBias) % 4;
-    genes.tailStyle = (traits.saturation / 42 + traits.r + traits.b) % 4;
-    genes.auraPattern = (traits.contrast / 38 + traits.g + remoteHint.styleBias) % 4;
-    genes.patternDensity = clamp_u8(2 + traits.saturation / 28 + traits.contrast / 55);
+    int32_t centerBrightnessDelta = traits.centerBrightness - traits.edgeBrightness;
+    int32_t centerSaturationDelta = traits.centerSaturation - traits.edgeSaturation;
+    uint8_t classId = recog.classId;
+    genes.element = remoteHint.valid ? remoteHint.preferredElement : recog.elementHint;
+    genes.species = remoteHint.valid ? (remoteHint.preferredSpecies % 3) : (recog.speciesBias % 3);
+    genes.mood = (traits.brightness > 168) ? 0 : ((traits.saturation < 38) ? 1 : ((traits.contrast > 145) ? 3 : 2));
+    genes.bodyScale = clamp_u8(78 + traits.saturation / 5 + traits.contrast / 10 + abs(centerBrightnessDelta) / 4);
+    genes.eyeStyle = (traits.brightness / 48 + recog.confidence / 35 + classId) % 4;
+    genes.hornStyle = (traits.contrast / 42 + abs(centerBrightnessDelta) / 18 + remoteHint.styleBias + classId) % 4;
+    genes.tailStyle = (traits.saturation / 38 + abs(centerSaturationDelta) / 14 + traits.r + traits.b + classId) % 4;
+    genes.auraPattern = (traits.centerDelta / 18 + traits.contrast / 45 + traits.g + remoteHint.styleBias + classId) % 4;
+    genes.patternDensity = clamp_u8(2 + traits.saturation / 35 + traits.contrast / 50 + traits.centerDelta / 30);
     genes.accentColor = element_accent_color(genes.element);
-    genes.seed = traits.seed ^ (static_cast<uint32_t>(recog.confidence) << 24) ^ (remoteHint.styleBias << 16);
+    genes.seed = traits.seed ^ (static_cast<uint32_t>(recog.confidence) << 24) ^
+                 (static_cast<uint32_t>(classId) << 20) ^
+                 (static_cast<uint32_t>(traits.brightness & 0xff) << 12) ^
+                 (static_cast<uint32_t>(traits.centerDelta & 0xff) << 4) ^
+                 (remoteHint.styleBias << 16);
     return genes;
 }
 
-static PetGenes derive_pet_genes(ImageTraits traits, uint32_t timeBucket, uint32_t shotCount)
+static PetGenes derive_pet_genes(ImageTraits traits, const RecognitionResult& recog, uint32_t timeBucket, uint32_t shotCount)
 {
-    RecognitionResult recog = recognize_object_local(traits);
     PetHint hint = {};
     fetch_remote_pet_hint(recog, &hint);
 
     PetGenes genes = merge_generation_inputs(traits, recog, hint);
-    uint32_t state = hash_mix(traits.seed ^ (timeBucket * 0x45d9f3bUL) ^ (shotCount * 0x119de1f3UL));
+    uint32_t state = hash_mix(traits.seed ^ (timeBucket * 0x45d9f3bUL) ^
+                              (shotCount * 0x119de1f3UL) ^
+                              (static_cast<uint32_t>(recog.classId) << 24) ^
+                              (static_cast<uint32_t>(traits.saturation & 0xff) << 16) ^
+                              (static_cast<uint32_t>(traits.centerDelta & 0xff) << 8));
+    int32_t centerBrightnessDelta = traits.centerBrightness - traits.edgeBrightness;
+    uint8_t timeStyle = timeBucket % 4;
 
-    if (!hint.valid) {
-        genes.species = next_rand(&state) % 3;
-    }
-    genes.bodyScale = clamp_u8(genes.bodyScale + static_cast<int32_t>(next_rand(&state) % 15) - 7);
-    genes.eyeStyle = (genes.eyeStyle + next_rand(&state)) % 4;
-    genes.hornStyle = (genes.hornStyle + next_rand(&state)) % 4;
-    genes.tailStyle = (genes.tailStyle + next_rand(&state)) % 4;
-    genes.auraPattern = (genes.auraPattern + next_rand(&state)) % 4;
-    genes.patternDensity = clamp_u8(genes.patternDensity + next_rand(&state) % 4);
+    genes.species %= 3;
+    genes.bodyScale = clamp_u8(genes.bodyScale + centerBrightnessDelta / 12 +
+                               static_cast<int32_t>(next_rand(&state) % 13) - 6);
+    genes.eyeStyle = (genes.eyeStyle + timeStyle + next_rand(&state)) % 4;
+    genes.hornStyle = (genes.hornStyle + traits.contrast / 64 + next_rand(&state)) % 4;
+    genes.tailStyle = (genes.tailStyle + shotCount + traits.saturation / 64 + next_rand(&state)) % 4;
+    genes.auraPattern = (genes.auraPattern + traits.centerDelta / 30 + timeStyle + next_rand(&state)) % 4;
+    genes.patternDensity = clamp_u8(genes.patternDensity + traits.centerDelta / 45 + next_rand(&state) % 3);
 
     uint16_t baseAccent = element_accent_color(genes.element);
-    int32_t colorShift = static_cast<int32_t>((next_rand(&state) % 51)) - 20 + traits.saturation / 10;
+    int32_t colorShift = static_cast<int32_t>((next_rand(&state) % 41)) - 18 +
+                         traits.saturation / 12 + (traits.brightness - 128) / 16 -
+                         traits.contrast / 28;
     genes.accentColor = tint_color(baseAccent, colorShift);
     genes.seed = state;
 
@@ -1391,6 +1458,10 @@ static void draw_pet_features(ElementType element, const PetGenes& genes)
                 CoreS3.Display.drawArc(cx, cy + 28, 32 + i * 9, 18 + i * 5, 210, 330, tint_color(accent, -25));
             }
         }
+        for (int i = 0; i < 3; ++i) {
+            int32_t x = cx - 24 + i * 24;
+            CoreS3.Display.drawLine(x, cy - 4, x + 3, cy + 46, tint_color(accent, -35));
+        }
     } else if (element == kFire) {
         CoreS3.Display.fillTriangle(cx - 18, cy - 48, cx, cy - 86 - spike / 2, cx + 18, cy - 48, accent);
         if (genes.species == 1) {
@@ -1445,6 +1516,9 @@ static void draw_pet_features(ElementType element, const PetGenes& genes)
             CoreS3.Display.fillTriangle(cx - 43, cy - 28, cx - 76, cy - 68, cx - 24, cy - 54, accent);
             CoreS3.Display.fillTriangle(cx + 43, cy - 28, cx + 76, cy - 68, cx + 24, cy - 54, accent);
         }
+        CoreS3.Display.drawLine(cx - 38, cy - 24, cx - 8, cy - 44, TFT_WHITE);
+        CoreS3.Display.drawLine(cx + 8, cy - 44, cx + 38, cy - 24, TFT_WHITE);
+        CoreS3.Display.drawCircle(cx, cy + 20, 22 + genes.tailStyle * 3, tint_color(accent, 25));
     } else {
         if (genes.species == 0) {
             CoreS3.Display.fillTriangle(cx - 54, cy + 26, cx - 100, cy - 4, cx - 100, cy + 62, accent);
@@ -1465,6 +1539,8 @@ static void draw_pet_features(ElementType element, const PetGenes& genes)
         for (int i = 0; i < 4 + genes.patternDensity / 4; ++i) {
             CoreS3.Display.drawArc(48 + i * 58, 52 + (i % 2) * 10, 24, 15, 20, 160, accent);
         }
+        CoreS3.Display.fillCircle(cx + 74, cy + 64, 7 + genes.tailStyle, tint_color(accent, 35));
+        CoreS3.Display.fillTriangle(cx + 74, cy + 48, cx + 64, cy + 64, cx + 84, cy + 64, tint_color(accent, 35));
     }
 
     for (int i = 0; i < genes.patternDensity; ++i) {
@@ -1476,7 +1552,7 @@ static void draw_pet_features(ElementType element, const PetGenes& genes)
     draw_pet_face(cx, cy, genes, dark);
 }
 
-static void draw_pet_badge(const ImageTraits& traits, const PetGenes& genes)
+static void draw_pet_badge(const ImageTraits& traits, const RecognitionResult& recog, const PetGenes& genes)
 {
     char line[96];
     uint16_t accent = genes.accentColor;
@@ -1495,14 +1571,16 @@ static void draw_pet_badge(const ImageTraits& traits, const PetGenes& genes)
     CoreS3.Display.drawRoundRect(6, 188, 308, 44, 8, rgb(92, 92, 102));
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(20, 20, 24));
     CoreS3.Display.setCursor(14, 194);
-    snprintf(line, sizeof(line), "Seed:%08lx  Var:%u/%u/%u",
-             static_cast<unsigned long>(genes.seed), genes.species + 1, genes.tailStyle, genes.auraPattern);
+    snprintf(line, sizeof(line), "%s C:%u P:%u  %lums/%lums",
+             recog.objectLabel, recog.confidence, recog.presenceScore,
+             static_cast<unsigned long>(last_vision_preprocess_ms),
+             static_cast<unsigned long>(last_vision_classify_ms));
     CoreS3.Display.print(line);
     CoreS3.Display.setCursor(14, 212);
-    snprintf(line, sizeof(line), "RGB:%u,%u,%u S:%ld Conf:%ld",
+    snprintf(line, sizeof(line), "RGB:%u,%u,%u S:%ld Seed:%08lx",
              traits.r, traits.g, traits.b,
              static_cast<long>(traits.saturation),
-             static_cast<long>(traits.confidence));
+             static_cast<unsigned long>(genes.seed));
     CoreS3.Display.print(line);
 }
 
@@ -1534,6 +1612,14 @@ static uint16_t level_xp_need(uint8_t level)
 static bool valid_bag_index(uint8_t index)
 {
     return index < backpack.count && index < kMaxBackpackPets;
+}
+
+static uint8_t win_rate_percent(const SavedPet& pet)
+{
+    if (pet.battles == 0) {
+        return 0;
+    }
+    return static_cast<uint8_t>(min<uint16_t>(100, (static_cast<uint32_t>(pet.wins) * 100UL) / pet.battles));
 }
 
 static SavedPet* selected_pet()
@@ -1716,13 +1802,31 @@ static int32_t battle_score(const BattlePetPacket& self, const BattlePetPacket& 
     return self.power * 2 + self.agility + self.spirit + element_advantage(packet_element(self), packet_element(other)) + luck;
 }
 
-static uint16_t award_battle_xp(int32_t diff)
+static uint16_t record_friendship_bonus(const BattlePetPacket& opponent)
+{
+    uint32_t now = now_sec();
+    bool rematch = last_friend_peer_id == opponent.deviceId &&
+                   last_friend_battle_sec != 0 &&
+                   now >= last_friend_battle_sec &&
+                   now - last_friend_battle_sec <= kRematchWindowSec;
+    if (rematch) {
+        friend_rematch_streak = min<uint8_t>(3, friend_rematch_streak + 1);
+    } else {
+        friend_rematch_streak = 0;
+    }
+    last_friend_peer_id = opponent.deviceId;
+    last_friend_battle_sec = now;
+    return rematch ? static_cast<uint16_t>(friend_rematch_streak * kRematchXpStep) : 0;
+}
+
+static uint16_t award_battle_xp(int32_t diff, uint16_t bonusXp)
 {
     SavedPet* pet = selected_pet();
     if (pet == nullptr) {
         return 0;
     }
     uint16_t gained = (abs(diff) <= 6) ? 16 : ((diff > 0) ? 35 : 8);
+    gained = min<uint16_t>(80, gained + bonusXp);
     pet->xp = min<uint16_t>(9999, pet->xp + gained);
     ++pet->battles;
     if (diff > 6) {
@@ -1754,16 +1858,54 @@ static void draw_peer_waiting(const BattlePetPacket& packet)
     display_hold_until_ms = millis() + 3500;
 }
 
+static void draw_battle_clash(const BattlePetPacket& opponent)
+{
+    screen_mode = kScreenBattle;
+    battle_runtime_state = kBattleStateBattling;
+    BattlePetPacket mine = make_battle_packet(local_pet, local_pet_sequence);
+
+    CoreS3.Display.fillScreen(rgb(9, 10, 15));
+    CoreS3.Display.setFont(&fonts::Font2);
+    CoreS3.Display.setTextDatum(top_left);
+    CoreS3.Display.setTextColor(TFT_CYAN, rgb(9, 10, 15));
+    CoreS3.Display.setCursor(18, 12);
+    CoreS3.Display.print("BATTLE START");
+
+    CoreS3.Display.fillRoundRect(10, 48, 145, 86, 8, rgb(24, 28, 36));
+    CoreS3.Display.fillRoundRect(165, 48, 145, 86, 8, rgb(24, 28, 36));
+    CoreS3.Display.drawRoundRect(10, 48, 145, 86, 8, element_accent_color(packet_element(mine)));
+    CoreS3.Display.drawRoundRect(165, 48, 145, 86, 8, element_accent_color(packet_element(opponent)));
+
+    CoreS3.Display.setTextColor(TFT_WHITE, rgb(24, 28, 36));
+    CoreS3.Display.setCursor(20, 60);
+    CoreS3.Display.printf("YOU  Lv%u", mine.level);
+    CoreS3.Display.setCursor(20, 86);
+    CoreS3.Display.printf("%s", element_name(packet_element(mine)));
+    CoreS3.Display.setCursor(176, 60);
+    CoreS3.Display.printf("PEER Lv%u", opponent.level);
+    CoreS3.Display.setCursor(176, 86);
+    CoreS3.Display.printf("%s", element_name(packet_element(opponent)));
+
+    CoreS3.Display.setTextColor(TFT_YELLOW, rgb(9, 10, 15));
+    CoreS3.Display.setCursor(94, 144);
+    CoreS3.Display.print("CLASH...");
+    draw_action_footer("BAG", "IDLE", "PHOTO", TFT_CYAN);
+    display_hold_until_ms = millis() + 2500;
+    play_scene_sound(kSoundMatch);
+}
+
 static void draw_battle_result(const BattlePetPacket& opponent)
 {
     screen_mode = kScreenBattle;
+    battle_runtime_state = kBattleStateBattling;
     BattlePetPacket mine = make_battle_packet(local_pet, local_pet_sequence);
     int32_t myScore = battle_score(mine, opponent);
     int32_t peerScore = battle_score(opponent, mine);
     int32_t diff = myScore - peerScore;
     const char* result = (abs(diff) <= 6) ? "DRAW" : ((diff > 0) ? "YOU WIN" : "YOU LOSE");
     uint16_t resultColor = (abs(diff) <= 6) ? TFT_YELLOW : ((diff > 0) ? TFT_GREEN : TFT_RED);
-    uint16_t gainedXp = award_battle_xp(diff);
+    uint16_t friendBonus = record_friendship_bonus(opponent);
+    uint16_t gainedXp = award_battle_xp(diff, friendBonus);
     mine = make_battle_packet(local_pet, local_pet_sequence);
 
     CoreS3.Display.fillScreen(rgb(9, 10, 15));
@@ -1771,7 +1913,7 @@ static void draw_battle_result(const BattlePetPacket& opponent)
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(resultColor, rgb(9, 10, 15));
     CoreS3.Display.setCursor(18, 12);
-    CoreS3.Display.printf("BATTLE LINK  %s", result);
+    CoreS3.Display.printf("BATTLE RESULT  %s", result);
 
     CoreS3.Display.fillRoundRect(10, 46, 145, 104, 8, rgb(24, 28, 36));
     CoreS3.Display.fillRoundRect(165, 46, 145, 104, 8, rgb(24, 28, 36));
@@ -1804,9 +1946,11 @@ static void draw_battle_result(const BattlePetPacket& opponent)
     CoreS3.Display.fillRoundRect(10, 154, 300, 26, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
     CoreS3.Display.setCursor(18, 160);
-    CoreS3.Display.printf("Rule: Wood>Earth>Water>Fire>Metal");
-    CoreS3.Display.setCursor(236, 160);
-    CoreS3.Display.printf("XP+%u", gainedXp);
+    if (friendBonus > 0) {
+        CoreS3.Display.printf("XP+%u  Rematch +%u", gainedXp, friendBonus);
+    } else {
+        CoreS3.Display.printf("XP+%u  Rematch for bond", gainedXp);
+    }
     draw_action_footer("BAG", "IDLE", "PHOTO", resultColor);
 
     display_hold_until_ms = millis() + 7000;
@@ -1816,6 +1960,9 @@ static void draw_battle_result(const BattlePetPacket& opponent)
 static void handle_opponent_packet(const BattlePetPacket& packet)
 {
     if (screen_mode != kScreenMatch && screen_mode != kScreenBattle) {
+        return;
+    }
+    if (battle_result_pending) {
         return;
     }
     if (!has_local_pet) {
@@ -1828,6 +1975,27 @@ static void handle_opponent_packet(const BattlePetPacket& packet)
         return;
     }
     last_battle_key = battleKey;
+    pending_battle_packet = packet;
+    battle_result_pending = true;
+    battle_result_due_ms = millis() + kBattleClashMs;
+    draw_battle_clash(packet);
+}
+
+static void resolve_pending_battle_result()
+{
+    if (!battle_result_pending) {
+        return;
+    }
+    if (screen_mode != kScreenBattle) {
+        battle_result_pending = false;
+        return;
+    }
+    if (static_cast<int32_t>(millis() - battle_result_due_ms) < 0) {
+        return;
+    }
+
+    BattlePetPacket packet = pending_battle_packet;
+    battle_result_pending = false;
     draw_battle_result(packet);
 }
 
@@ -1839,6 +2007,24 @@ static bool battle_ip_valid(const IPAddress& ip)
 static uint8_t battle_ap_subnet()
 {
     return static_cast<uint8_t>((device_id % 200UL) + 20UL);
+}
+
+static bool mac_equals(const uint8_t* left, const uint8_t* right)
+{
+    return memcmp(left, right, 6) == 0;
+}
+
+static uint32_t device_id_from_mac(const uint8_t* mac)
+{
+    return (static_cast<uint32_t>(mac[2]) << 24) |
+           (static_cast<uint32_t>(mac[3]) << 16) |
+           (static_cast<uint32_t>(mac[4]) << 8) |
+           static_cast<uint32_t>(mac[5]);
+}
+
+static void build_battle_ssid_from_mac(char* output, size_t outputLen, const uint8_t* mac)
+{
+    snprintf(output, outputLen, "%s%02X%02X%02X", kBattleSsidPrefix, mac[3], mac[4], mac[5]);
 }
 
 static bool parse_hex_nibble(char c, uint8_t& out)
@@ -1861,12 +2047,16 @@ static bool parse_hex_nibble(char c, uint8_t& out)
 static bool parse_battle_ssid(const String& ssid, uint32_t& peerId)
 {
     const size_t prefixLen = strlen(kBattleSsidPrefix);
-    if (!ssid.startsWith(kBattleSsidPrefix) || ssid.length() != prefixLen + 8) {
+    if (!ssid.startsWith(kBattleSsidPrefix)) {
+        return false;
+    }
+    size_t suffixLen = ssid.length() - prefixLen;
+    if (suffixLen != 6 && suffixLen != 8) {
         return false;
     }
 
     uint32_t value = 0;
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < suffixLen; ++i) {
         uint8_t nibble = 0;
         if (!parse_hex_nibble(ssid[prefixLen + i], nibble)) {
             return false;
@@ -1885,29 +2075,95 @@ static const char* battle_role_name()
     return battle_link_role == kBattleRoleClient ? "CLIENT" : "HOST";
 }
 
+static const char* battle_state_name()
+{
+    switch (battle_runtime_state) {
+    case kBattleStatePairing:
+        return "PAIRING";
+    case kBattleStateReady:
+        return "READY";
+    case kBattleStateBattling:
+        return "BATTLING";
+    case kBattleStateRetrying:
+        return "RETRYING";
+    case kBattleStateDiscovering:
+    default:
+        return "DISCOVERING";
+    }
+}
+
+static const char* known_board_label()
+{
+    if (mac_equals(device_mac, kKnownCom8Mac)) {
+        return "COM8";
+    }
+    if (mac_equals(device_mac, kKnownCom7Mac)) {
+        return "COM7";
+    }
+    return "UNKNOWN";
+}
+
+static void log_battle_identity()
+{
+    Serial.printf("battle mac=%02X:%02X:%02X:%02X:%02X:%02X board=%s role=%s state=%s ap=%s udp=%u\n",
+                  device_mac[0], device_mac[1], device_mac[2],
+                  device_mac[3], device_mac[4], device_mac[5],
+                  known_board_label(),
+                  battle_role_name(),
+                  battle_state_name(),
+                  battle_ap_ssid,
+                  kBattleUdpPort);
+}
+
+static void log_battle_runtime_status()
+{
+    if (screen_mode != kScreenMatch && screen_mode != kScreenBattle) {
+        return;
+    }
+    if (millis() - last_battle_status_log_ms < kBattleStatusLogIntervalMs) {
+        return;
+    }
+    last_battle_status_log_ms = millis();
+
+    uint32_t peerAgeMs = last_peer_seen_ms == 0 ? 0 : millis() - last_peer_seen_ms;
+    Serial.printf("battle status state=%s role=%s wifi=%d peer=%lu ip=%u.%u.%u.%u tx=%u rx=%u fail=%u peer_age_ms=%lu\n",
+                  battle_state_name(),
+                  battle_role_name(),
+                  static_cast<int>(WiFi.status()),
+                  static_cast<unsigned long>(battle_peer_id),
+                  battle_peer_ip[0], battle_peer_ip[1], battle_peer_ip[2], battle_peer_ip[3],
+                  battle_packets_sent,
+                  battle_packets_seen,
+                  battle_send_failures,
+                  static_cast<unsigned long>(peerAgeMs));
+}
+
 static const char* battle_link_status()
 {
     static char status[72];
     if (!comm_ok) {
-        snprintf(status, sizeof(status), "WiFi UDP init failed.");
+        snprintf(status, sizeof(status), "LINK INIT FAILED");
         return status;
     }
 
-    if (battle_link_role == kBattleRoleClient) {
-        if (WiFi.status() == WL_CONNECTED) {
-            IPAddress ip = WiFi.localIP();
-            snprintf(status, sizeof(status), "CLIENT connected %u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
-        } else {
-            snprintf(status, sizeof(status), "CLIENT connecting to %08lX", static_cast<unsigned long>(battle_peer_id));
-        }
+    if (battle_runtime_state == kBattleStateRetrying) {
+        snprintf(status, sizeof(status), "RETRYING...");
+        return status;
+    }
+    if (battle_runtime_state == kBattleStateBattling) {
+        snprintf(status, sizeof(status), "BATTLING");
+        return status;
+    }
+    if (last_peer_seen_ms != 0 || battle_runtime_state == kBattleStateReady) {
+        snprintf(status, sizeof(status), "CONNECTED");
+        return status;
+    }
+    if (battle_runtime_state == kBattleStatePairing) {
+        snprintf(status, sizeof(status), "PAIRING...");
         return status;
     }
 
-    if (battle_ip_valid(battle_peer_ip)) {
-        snprintf(status, sizeof(status), "HOST peer %u.%u.%u.%u", battle_peer_ip[0], battle_peer_ip[1], battle_peer_ip[2], battle_peer_ip[3]);
-    } else {
-        snprintf(status, sizeof(status), "HOST AP %s STA:%u", battle_ap_ssid, WiFi.softAPgetStationNum());
-    }
+    snprintf(status, sizeof(status), "MATCHING...");
     return status;
 }
 
@@ -1921,19 +2177,14 @@ static void connect_to_battle_peer(const char* ssid, uint32_t peerId)
     battle_peer_id = peerId;
     battle_peer_ip = IPAddress(0, 0, 0, 0);
     battle_link_role = kBattleRoleClient;
+    battle_runtime_state = kBattleStatePairing;
     last_battle_connect_ms = millis();
     WiFi.disconnect(false, false);
     WiFi.begin(battle_peer_ssid);
 }
 
-static void scan_for_battle_peer()
+static void finish_battle_scan(int networkCount)
 {
-    if (millis() - last_battle_scan_ms < kBattleScanIntervalMs) {
-        return;
-    }
-    last_battle_scan_ms = millis();
-
-    int networkCount = WiFi.scanNetworks(false, true);
     uint32_t bestPeerId = 0xffffffffUL;
     char bestSsid[20] = {};
 
@@ -1955,6 +2206,41 @@ static void scan_for_battle_peer()
     } else if (battle_link_role != kBattleRoleClient || WiFi.status() != WL_CONNECTED) {
         battle_link_role = kBattleRoleHost;
         battle_peer_id = 0;
+        battle_runtime_state = kBattleStateDiscovering;
+    }
+    battle_scan_running = false;
+}
+
+static void scan_for_battle_peer()
+{
+    if (battle_scan_running) {
+        int networkCount = WiFi.scanComplete();
+        if (networkCount == WIFI_SCAN_RUNNING) {
+            return;
+        }
+        if (networkCount >= 0) {
+            finish_battle_scan(networkCount);
+        } else {
+            WiFi.scanDelete();
+            battle_scan_running = false;
+        }
+        return;
+    }
+
+    if (millis() - last_battle_scan_ms < kBattleScanIntervalMs) {
+        return;
+    }
+    last_battle_scan_ms = millis();
+    battle_runtime_state = kBattleStateDiscovering;
+
+    int scanState = WiFi.scanNetworks(true, true);
+    if (scanState == WIFI_SCAN_RUNNING) {
+        battle_scan_running = true;
+    } else if (scanState >= 0) {
+        finish_battle_scan(scanState);
+    } else {
+        WiFi.scanDelete();
+        battle_scan_running = false;
     }
 }
 
@@ -1966,6 +2252,8 @@ static void maintain_battle_wifi_link()
 
     if (battle_ip_valid(battle_peer_ip) && millis() - last_peer_seen_ms > kBattlePeerTimeoutMs) {
         battle_peer_ip = IPAddress(0, 0, 0, 0);
+        last_peer_seen_ms = 0;
+        battle_runtime_state = kBattleStateRetrying;
     }
 
     if (battle_link_role == kBattleRoleClient) {
@@ -1976,8 +2264,10 @@ static void maintain_battle_wifi_link()
             }
             return;
         }
-        if (battle_peer_ssid[0] != '\0' && millis() - last_battle_connect_ms > kBattleConnectRetryMs) {
+        if (battle_peer_ssid[0] != '\0' &&
+            (last_battle_connect_ms == 0 || millis() - last_battle_connect_ms > kBattleConnectRetryMs)) {
             last_battle_connect_ms = millis();
+            WiFi.disconnect(false, false);
             WiFi.begin(battle_peer_ssid);
         }
         return;
@@ -2004,6 +2294,7 @@ static void accept_pet_packet(const uint8_t* data, int len, const IPAddress& rem
     battle_peer_id = packet.deviceId;
     battle_peer_ip = remoteIp;
     last_peer_seen_ms = millis();
+    battle_runtime_state = (screen_mode == kScreenBattle) ? kBattleStateBattling : kBattleStateReady;
     last_opponent_packet = packet;
     ++battle_packets_seen;
     opponent_packet_pending = true;
@@ -2029,21 +2320,29 @@ static void receive_pet_packets()
 
 static bool init_pet_comms()
 {
-    device_id = static_cast<uint32_t>(ESP.getEfuseMac() & 0xffffffffUL);
-    snprintf(battle_ap_ssid, sizeof(battle_ap_ssid), "%s%08lX", kBattleSsidPrefix, static_cast<unsigned long>(device_id));
-
     WiFi.persistent(false);
     WiFi.mode(WIFI_AP_STA);
     WiFi.setSleep(false);
     esp_wifi_set_ps(WIFI_PS_NONE);
     esp_wifi_set_max_tx_power(78);
 
+    WiFi.macAddress(device_mac);
+    device_id = device_id_from_mac(device_mac);
+    if (device_id == 0) {
+        device_id = static_cast<uint32_t>(ESP.getEfuseMac() & 0xffffffffUL);
+    }
+    build_battle_ssid_from_mac(battle_ap_ssid, sizeof(battle_ap_ssid), device_mac);
+
     IPAddress apIp(10, 23, battle_ap_subnet(), 1);
     IPAddress mask(255, 255, 255, 0);
     WiFi.softAPConfig(apIp, apIp, mask);
     battle_wifi_started = WiFi.softAP(battle_ap_ssid, nullptr, kBattleWifiChannel, false, 2);
     battle_udp_started = battle_udp.begin(kBattleUdpPort) == 1;
+
     battle_link_role = kBattleRoleHost;
+    battle_runtime_state = kBattleStateDiscovering;
+    battle_peer_id = 0;
+    battle_peer_ssid[0] = '\0';
     return battle_wifi_started && battle_udp_started;
 }
 
@@ -2089,6 +2388,7 @@ static void service_pet_comms()
 {
     receive_pet_packets();
     maintain_battle_wifi_link();
+    log_battle_runtime_status();
 
     if (opponent_packet_pending) {
         BattlePetPacket packet = last_opponent_packet;
@@ -2112,19 +2412,19 @@ static void refresh_match_status()
     }
     last_match_status_ms = millis();
 
-    CoreS3.Display.fillRoundRect(8, 160, 304, 42, 8, rgb(18, 22, 30));
+    CoreS3.Display.fillRoundRect(8, 136, 304, 44, 8, rgb(18, 22, 30));
     CoreS3.Display.setFont(&fonts::Font2);
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
-    CoreS3.Display.setCursor(14, 164);
+    CoreS3.Display.setCursor(14, 142);
     if (last_peer_seen_ms == 0) {
         CoreS3.Display.print(battle_link_status());
     } else {
         CoreS3.Display.printf("Peer seen %lus ago. Waiting result.", static_cast<unsigned long>((millis() - last_peer_seen_ms) / 1000));
     }
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
-    CoreS3.Display.setCursor(14, 184);
-    CoreS3.Display.printf("%s UDP:%u TX:%u RX:%u F:%u", battle_role_name(), kBattleUdpPort, battle_packets_sent, battle_packets_seen, battle_send_failures);
+    CoreS3.Display.setCursor(14, 162);
+    CoreS3.Display.print(last_peer_seen_ms == 0 ? "Move near another trainer." : "Opponent ready.");
 }
 
 static void draw_pet_scene(const PetGenes& genes)
@@ -2151,6 +2451,10 @@ static void draw_idle_screen(const char* message, bool playSound)
 {
     screen_mode = kScreenIdle;
     has_wild_pet = false;
+    battle_result_pending = false;
+    battle_runtime_state = kBattleStateDiscovering;
+    battle_scan_running = false;
+    WiFi.scanDelete();
 
     CoreS3.Display.fillScreen(rgb(8, 10, 14));
     CoreS3.Display.setFont(&fonts::Font2);
@@ -2161,7 +2465,7 @@ static void draw_idle_screen(const char* message, bool playSound)
 
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(8, 10, 14));
     CoreS3.Display.setCursor(16, 48);
-    CoreS3.Display.print(message == nullptr ? "Say PAIZHAO or tap PHOTO to meet wild pet." : message);
+    CoreS3.Display.print(message == nullptr ? "Tap PHOTO to meet a wild pet." : message);
 
     const SavedPet* pet = selected_pet_const();
     CoreS3.Display.fillRoundRect(14, 84, 292, 72, 8, rgb(20, 24, 32));
@@ -2223,10 +2527,20 @@ static void draw_match_screen(const char* message)
 {
     screen_mode = kScreenMatch;
     has_wild_pet = false;
+    battle_result_pending = false;
     refresh_backpack_growth(true);
     match_started_ms = millis();
     last_peer_seen_ms = 0;
-    last_battle_scan_ms = 0;
+    last_battle_scan_ms = millis() - kBattleScanIntervalMs;
+    last_battle_connect_ms = 0;
+    last_battle_status_log_ms = 0;
+    battle_peer_ip = IPAddress(0, 0, 0, 0);
+    battle_peer_id = 0;
+    battle_peer_ssid[0] = '\0';
+    battle_link_role = kBattleRoleHost;
+    battle_runtime_state = kBattleStateDiscovering;
+    battle_scan_running = false;
+    WiFi.scanDelete();
     opponent_packet_pending = false;
     battle_packets_sent = 0;
     battle_packets_seen = 0;
@@ -2267,13 +2581,13 @@ static void draw_match_screen(const char* message)
     CoreS3.Display.setCursor(16, 34);
     CoreS3.Display.printf("%s  Lv%u", species_name(pet->genes), pet->level);
 
-    CoreS3.Display.fillRoundRect(8, 160, 304, 22, 8, rgb(18, 22, 30));
+    CoreS3.Display.fillRoundRect(8, 136, 304, 44, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
-    CoreS3.Display.setCursor(14, 164);
+    CoreS3.Display.setCursor(14, 142);
     CoreS3.Display.print(message == nullptr ? battle_link_status() : message);
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
-    CoreS3.Display.setCursor(14, 184);
-    CoreS3.Display.printf("%s UDP:%u TX:%u RX:%u F:%u", battle_role_name(), kBattleUdpPort, battle_packets_sent, battle_packets_seen, battle_send_failures);
+    CoreS3.Display.setCursor(14, 162);
+    CoreS3.Display.print(last_peer_seen_ms == 0 ? "Move near another trainer." : "Opponent ready.");
     draw_action_footer("BAG", "IDLE", "PHOTO", pet->genes.accentColor);
     display_hold_until_ms = millis() + 6000;
     play_scene_sound(kSoundMatch);
@@ -2353,6 +2667,7 @@ static void release_stored_pet()
 static void draw_bag_screen(const char* message)
 {
     screen_mode = kScreenBag;
+    battle_result_pending = false;
     refresh_backpack_growth(true);
 
     if (backpack.count == 0) {
@@ -2364,7 +2679,7 @@ static void draw_bag_screen(const char* message)
         CoreS3.Display.print("Backpack empty");
         CoreS3.Display.setTextColor(TFT_WHITE, rgb(8, 10, 14));
         CoreS3.Display.setCursor(16, 64);
-        CoreS3.Display.print("Say PAIZHAO to meet a wild pet.");
+        CoreS3.Display.print("Tap PHOTO to meet a wild pet.");
         CoreS3.Display.setCursor(16, 96);
         CoreS3.Display.print("Right = photo, left/mid = idle.");
         draw_action_footer("IDLE", "IDLE", "PHOTO", TFT_CYAN);
@@ -2398,8 +2713,9 @@ static void draw_bag_screen(const char* message)
     if (message != nullptr) {
         CoreS3.Display.print(message);
     } else {
-        CoreS3.Display.printf("%s  %s  Win:%u/%u", element_name(pet.genes.element),
-                              mood_name(pet.genes.mood), pet.wins, pet.battles);
+        CoreS3.Display.printf("%s  %s  W:%u/%u %u%%", element_name(pet.genes.element),
+                              mood_name(pet.genes.mood), pet.wins, pet.battles,
+                              win_rate_percent(pet));
     }
     draw_action_footer("RELEASE", "SELECT", "NEXT", pet.genes.accentColor);
     display_hold_until_ms = millis() + 4500;
@@ -2407,14 +2723,25 @@ static void draw_bag_screen(const char* message)
     play_pet_sound(pet.genes, pet.level, pet.stage);
 }
 
-static void draw_wild_pet(const ImageTraits& traits)
+static void draw_wild_pet(const ImageTraits& traits, const RecognitionResult& recog)
 {
-    wild_pet = derive_pet_genes(traits, millis() / 30000UL, shot_count);
+    if (!recog.recognized || recog.confidence < kMinRecognitionConfidence || recog.classId == kObjectUnknown) {
+        RecognitionResult fail = recog;
+        fail.recognized = false;
+        if (fail.failureReason == nullptr || fail.failureReason[0] == '\0') {
+            fail.failureReason = "Recognition failed";
+        }
+        draw_capture_fail(traits, fail);
+        return;
+    }
+
+    wild_pet = derive_pet_genes(traits, recog, millis() / 30000UL, shot_count);
     wild_traits = traits;
+    wild_recognition = recog;
     has_wild_pet = true;
     screen_mode = kScreenWild;
     draw_pet_scene(wild_pet);
-    draw_pet_badge(traits, wild_pet);
+    draw_pet_badge(traits, recog, wild_pet);
 
     CoreS3.Display.fillRoundRect(8, 160, 304, 22, 8, rgb(20, 20, 24));
     CoreS3.Display.setTextDatum(top_left);
@@ -2428,13 +2755,62 @@ static void draw_wild_pet(const ImageTraits& traits)
     play_pet_sound(wild_pet, 1, 0);
 }
 
+static void draw_capture_fail(const ImageTraits& traits, const RecognitionResult& recog)
+{
+    has_wild_pet = false;
+    wild_pet = {};
+    screen_mode = kScreenCaptureFail;
+    wild_traits = traits;
+    wild_recognition = recog;
+
+    CoreS3.Display.fillScreen(rgb(10, 10, 14));
+    CoreS3.Display.setFont(&fonts::Font2);
+    CoreS3.Display.setTextDatum(top_left);
+    CoreS3.Display.setTextColor(TFT_RED, rgb(10, 10, 14));
+    CoreS3.Display.setCursor(16, 18);
+    CoreS3.Display.print("CAPTURE FAILED");
+
+    CoreS3.Display.setTextColor(TFT_WHITE, rgb(10, 10, 14));
+    CoreS3.Display.setCursor(16, 52);
+    CoreS3.Display.printf("%s", recog.failureReason == nullptr ? "No clear object" : recog.failureReason);
+    CoreS3.Display.setCursor(16, 78);
+    CoreS3.Display.printf("Presence:%u  Confidence:%u", recog.presenceScore, recog.confidence);
+    CoreS3.Display.setCursor(16, 104);
+    CoreS3.Display.printf("RGB:%u,%u,%u  S:%ld  D:%ld",
+                          traits.r, traits.g, traits.b,
+                          static_cast<long>(traits.saturation),
+                          static_cast<long>(traits.centerDelta));
+    CoreS3.Display.setCursor(16, 130);
+    CoreS3.Display.printf("Vision:%lums + %lums  Heap:%lu",
+                          static_cast<unsigned long>(last_vision_preprocess_ms),
+                          static_cast<unsigned long>(last_vision_classify_ms),
+                          static_cast<unsigned long>(ESP.getFreeHeap()));
+    draw_action_footer("BAG", "IDLE", "RETRY", TFT_RED);
+    display_hold_until_ms = millis() + 4500;
+    play_scene_sound(kSoundWarning);
+}
+
 static void capture_wild_pet()
 {
     if (!has_wild_pet) {
         return;
     }
+    if (!wild_recognition.recognized ||
+        wild_recognition.confidence < kMinRecognitionConfidence ||
+        wild_recognition.classId == kObjectUnknown) {
+        RecognitionResult fail = wild_recognition;
+        fail.recognized = false;
+        if (fail.failureReason == nullptr || fail.failureReason[0] == '\0') {
+            fail.failureReason = "Recognition failed";
+        }
+        draw_capture_fail(wild_traits, fail);
+        return;
+    }
     if (backpack.count >= kMaxBackpackPets) {
-        draw_bag_screen("Bag full");
+        RecognitionResult fail = wild_recognition;
+        fail.recognized = false;
+        fail.failureReason = "Backpack full. Open BAG to release one.";
+        draw_capture_fail(wild_traits, fail);
         return;
     }
 
@@ -2443,6 +2819,8 @@ static void capture_wild_pet()
     pet.genes = wild_pet;
     pet.level = 1;
     pet.stage = 0;
+    pet.xp = kCaptureXp;
+    normalize_pet_level(pet);
     pet.capturedAtSec = now_sec();
     pet.lastGrowthSec = pet.capturedAtSec;
     uint8_t index = backpack.count;
@@ -2457,7 +2835,7 @@ static void release_wild_pet()
 {
     has_wild_pet = false;
     play_scene_sound(kSoundRelease);
-    draw_idle_screen("Released. Say PAIZHAO for another encounter.", false);
+    draw_idle_screen("Released. Tap PHOTO for another encounter.", false);
 }
 
 static uint8_t action_for_button(uint8_t button)
@@ -2472,6 +2850,16 @@ static uint8_t action_for_button(uint8_t button)
             return kActionBackToIdle;
         }
         return kActionReleasePet;
+    }
+
+    if (screen_mode == kScreenCaptureFail) {
+        if (slot == kButtonLeft) {
+            return kActionOpenBag;
+        }
+        if (slot == kButtonMiddle) {
+            return kActionBackToIdle;
+        }
+        return kActionPhoto;
     }
 
     if (screen_mode == kScreenBag) {
@@ -2536,7 +2924,7 @@ static void handle_ui_action(uint8_t action)
         draw_bag_screen(nullptr);
         break;
     case kActionBackToIdle:
-        draw_idle_screen("Idle. Say PAIZHAO or tap PHOTO.", true);
+        draw_idle_screen("Idle. Tap PHOTO, BAG, or MATCH.", true);
         break;
     case kActionMatchBattle:
         draw_match_screen(nullptr);
@@ -2594,75 +2982,71 @@ void handle_external_button(uint8_t button)
 
 static void take_photo(const char* reason)
 {
+    if (millis() - last_shot_ms < kPhotoCooldownMs) {
+        return;
+    }
     if (!camera_ok) {
         draw_status("Camera init failed", "Press reset and retry", TFT_RED);
         return;
     }
 
-    stop_mic();
-
     draw_status("Capturing...", reason, TFT_YELLOW);
     play_scene_sound(kSoundPhoto);
-    stop_mic();
 
     if (CoreS3.Camera.get()) {
-        draw_status("Analyzing image...", "Wild Wuxing pet appears", TFT_YELLOW);
+        draw_status("Analyzing image...", "Detecting subject and class", TFT_YELLOW);
+        bool preprocessed = preprocess_frame_for_vision();
         ImageTraits traits = analyze_frame();
-        draw_wild_pet(traits);
+        RecognitionResult recog = {};
+        if (preprocessed) {
+            recog = recognize_object_local(traits);
+        } else {
+            recog.failureReason = "Preprocess failed";
+            recog.objectLabel = object_class_label(kObjectUnknown);
+            recog.materialLabel = material_label_for_class(kObjectUnknown);
+            recog.elementHint = traits.element;
+        }
+        Serial.printf("vision pre=%lums cls=%lums presence=%u recognized=%u conf=%u class=%s heap=%lu reason=%s\n",
+                      static_cast<unsigned long>(last_vision_preprocess_ms),
+                      static_cast<unsigned long>(last_vision_classify_ms),
+                      recog.presenceScore, recog.recognized ? 1 : 0,
+                      recog.confidence, recog.objectLabel,
+                      static_cast<unsigned long>(ESP.getFreeHeap()),
+                      recog.failureReason == nullptr ? "" : recog.failureReason);
+        if (recog.recognized) {
+            draw_wild_pet(traits, recog);
+        } else {
+            draw_capture_fail(traits, recog);
+        }
         CoreS3.Camera.free();
         ++shot_count;
     } else {
-        draw_status("Capture failed", "Say again or tap screen", TFT_RED);
+        ImageTraits traits = {};
+        RecognitionResult recog = {};
+        recog.failureReason = "Camera capture failed";
+        recog.objectLabel = object_class_label(kObjectUnknown);
+        recog.materialLabel = material_label_for_class(kObjectUnknown);
+        draw_capture_fail(traits, recog);
     }
 
-    start_mic();
     last_shot_ms = millis();
-}
-
-static void calibrate_noise()
-{
-    draw_status("Calibrating mic...", "Keep quiet", TFT_CYAN);
-
-    uint32_t start = millis();
-    int32_t max_level = 0;
-    int32_t avg_level = 0;
-    int32_t count = 0;
-
-    while (millis() - start < kWarmupMs) {
-        int32_t level = measure_voice_level();
-        if (level > 0) {
-            max_level = max(max_level, level);
-            avg_level += level;
-            ++count;
-        }
-        CoreS3.delay(10);
-    }
-
-    if (count > 0) {
-        avg_level /= count;
-    }
-    voice_threshold = max(kMinThreshold, max(max_level * 2, avg_level * 4));
-
-    char line2[64];
-    snprintf(line2, sizeof(line2), "Threshold: %ld", static_cast<long>(voice_threshold));
-    draw_status("Ready", line2, TFT_GREEN);
-    CoreS3.delay(700);
-    draw_status("Say PAIZHAO", "Left/Mid:BAG  Right:PHOTO", TFT_GREEN);
 }
 
 void setup()
 {
+    Serial.begin(115200);
     auto cfg = M5.config();
-    cfg.internal_mic = true;
+    cfg.internal_mic = false;
     cfg.internal_spk = true;
     CoreS3.begin(cfg);
 
     CoreS3.Display.setRotation(1);
     CoreS3.Display.fillScreen(TFT_BLACK);
     comm_ok = init_pet_comms();
-    draw_status("Voice camera demo", comm_ok ? "WiFi UDP battle ready" : "WiFi UDP init failed", comm_ok ? TFT_CYAN : TFT_YELLOW);
+    log_battle_identity();
+    draw_status("Wuxing pet demo", comm_ok ? "Battle link ready" : "Battle link init failed", comm_ok ? TFT_CYAN : TFT_YELLOW);
     CoreS3.delay(500);
-    draw_status("Voice camera demo", "Init camera...", TFT_CYAN);
+    draw_status("Wuxing pet demo", "Init camera...", TFT_CYAN);
 
     camera_ok = CoreS3.Camera.begin();
     if (!camera_ok) {
@@ -2670,28 +3054,24 @@ void setup()
     }
 
     CoreS3.Speaker.setVolume(kSoundVolume);
-    CoreS3.Speaker.end();
-    start_mic();
-    sr_ready = init_offline_command_recognition();
-    draw_status("Offline voice", sr_ready ? "ESP-SR commands ready" : "ESP-SR not ready; fallback", sr_ready ? TFT_GREEN : TFT_YELLOW);
-    CoreS3.delay(700);
+    if (kAudioMuted) {
+        CoreS3.Speaker.stop();
+        CoreS3.Speaker.end();
+    }
     load_backpack();
     refresh_backpack_growth(true);
     restore_selected_pet();
     if (has_local_pet) {
         publish_local_pet();
     }
-    calibrate_noise();
     play_trainer_intro();
-    draw_idle_screen(sr_ready ? "Say: pai zhao / bei bao / fan hui / dui zhan" : "Ready. Say loudly or tap PHOTO.", false);
+    draw_idle_screen("Ready. Tap BAG / MATCH / PHOTO.", false);
 }
 
 void loop()
 {
     CoreS3.update();
     refresh_backpack_growth(false);
-    service_pet_comms();
-    refresh_match_status();
 
     if (CoreS3.Touch.getCount() && CoreS3.Touch.getDetail(0).wasClicked()) {
         auto detail = CoreS3.Touch.getDetail(0);
@@ -2699,49 +3079,9 @@ void loop()
         return;
     }
 
-    int32_t level = last_voice_level;
-    static int trigger_hits = 0;
-
-    if (sr_ready) {
-        const VoiceCommand command = recognize_voice_command_local();
-        level = last_voice_level;
-        if (command != kVoiceNone && millis() - last_voice_command_ms > kCooldownMs) {
-            last_voice_command_ms = millis();
-            trigger_hits = 0;
-            char message[80];
-            snprintf(message, sizeof(message), "Voice: %s", voice_command_label(command));
-            draw_status("Command recognized", message, TFT_GREEN);
-            CoreS3.delay(220);
-            switch (command) {
-            case kVoicePhoto:
-                handle_ui_action(kActionPhoto);
-                break;
-            case kVoiceBag:
-                handle_ui_action(kActionOpenBag);
-                break;
-            case kVoiceBack:
-                handle_ui_action(kActionBackToIdle);
-                break;
-            case kVoiceBattle:
-                handle_ui_action(kActionMatchBattle);
-                break;
-            default:
-                break;
-            }
-        }
-    } else {
-        level = measure_voice_level();
-        if (level > voice_threshold) {
-            ++trigger_hits;
-        } else if (trigger_hits > 0) {
-            --trigger_hits;
-        }
-
-        if (millis() - last_shot_ms > kCooldownMs && trigger_hits >= 2) {
-            trigger_hits = 0;
-            handle_ui_action(kActionPhoto);
-        }
-    }
+    service_pet_comms();
+    resolve_pending_battle_result();
+    refresh_match_status();
 
     static uint32_t last_ui_ms = 0;
     if (screen_mode == kScreenIdle && millis() > display_hold_until_ms && millis() - last_ui_ms > 600) {
@@ -2749,11 +3089,9 @@ void loop()
         char line2[64];
         const SavedPet* pet = selected_pet_const();
         if (pet == nullptr) {
-            snprintf(line2, sizeof(line2), "Mic:%ld  Bag:%u/%u  Mid:MATCH",
-                     static_cast<long>(level), backpack.count, kMaxBackpackPets);
+            snprintf(line2, sizeof(line2), "Bag:%u/%u  Mid:MATCH", backpack.count, kMaxBackpackPets);
         } else {
-            snprintf(line2, sizeof(line2), "Mic:%ld  Active Lv%u  Mid:MATCH",
-                     static_cast<long>(level), pet->level);
+            snprintf(line2, sizeof(line2), "Active Lv%u  Mid:MATCH", pet->level);
         }
         draw_status("IDLE  Left:BAG  Right:PHOTO", line2, TFT_GREEN);
     }
