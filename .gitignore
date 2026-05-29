@@ -1,0 +1,28 @@
+# Local build outputs
+build/
+dist/
+out/
+*.elf
+*.map
+*.hex
+*.uf2
+
+# Arduino temporary metadata
+.arduino/
+*.tmp
+*.log
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local environment files
+.env
+.env.*
+
+# Python cache from helper scripts
+__pycache__/
+*.pyc
+

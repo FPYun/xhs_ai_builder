@@ -1,0 +1,35 @@
+{
+  "source": "M5Burner official firmware API and CDN",
+  "download_base": "https://m5burner-cdn.m5stack.com/firmware/",
+  "entries": [
+    {
+      "name": "UIFlow2.0 CoreS3",
+      "version": "v2.4.5",
+      "published_at": "2026-05-15",
+      "file": "UIFlow2.0_CoreS3_v2.4.5__eda11862122c6912baa15e213730ecf8.bin",
+      "sha256": "6FC33207B469E6BD28772EF3FE88AABD53C6A0DD67F9F9269D35931FD16263E6"
+    },
+    {
+      "name": "CoreS3 UserDemo",
+      "version": "v0.11",
+      "published_at": "2026-05-12",
+      "file": "CoreS3_UserDemo_v0.11__f45337edb1966f4cc7d4f78745db921d.bin",
+      "sha256": "61D30782F3462F56873BC7135BB52CFBBAAF6BDB267B931A38414340C859F94B"
+    },
+    {
+      "name": "CoreS3SE UserDemo",
+      "version": "v0.6",
+      "published_at": "2024-05-24",
+      "file": "CoreS3SE_UserDemo_v0.6__fed93812db65b5347b706d1f237021b9.bin",
+      "sha256": "C6990A38BD3C42AB85AD77D377EBF47118B43A126C7623022E102F9F4D60063A"
+    },
+    {
+      "name": "CoreS3 Box Demo",
+      "version": "v0.1",
+      "published_at": "2023-06-14",
+      "file": "CoreS3_Box_Demo_v0.1__de972cae6c679d8a864dbfefe9193d17.bin",
+      "sha256": "029F56B2FD0859C62F14D80718F69E1662D643B475487F213788E0ED9941FF5A"
+    }
+  ]
+}
+
