@@ -1,6 +1,7 @@
 ﻿param(
     [string]$Sketch = ".\arduino_demos\04_camera_pet_battle\04_camera_pet_battle.ino",
     [string]$PlayerFlowDoc = ".\docs\player-flow-ui.md",
+    [string]$UsageDoc = ".\docs\usage.md",
     [string]$SdPayload = ".\sd_card_payload",
     [string]$SdBoundaryDoc = ".\docs\sd-card-file-boundary.md",
     [string]$DeviceAcceptanceDoc = ".\docs\device-acceptance.md",
@@ -35,6 +36,7 @@ function Read-Utf8 {
 
 $SketchText = Read-Utf8 $Sketch
 $DocText = Read-Utf8 $PlayerFlowDoc
+$UsageText = Read-Utf8 $UsageDoc
 $SdBoundaryText = Read-Utf8 $SdBoundaryDoc
 $DeviceAcceptanceText = if (Test-Path $DeviceAcceptanceDoc) { Read-Utf8 $DeviceAcceptanceDoc } else { "" }
 
@@ -477,6 +479,14 @@ if ($SketchText.Contains("service_serial_control();") -and
     $SketchText.Contains('command == "SOUND"') -and
     $SketchText.Contains('command == "SND"') -and
     $SketchText.Contains('command == "STATUS"') -and
+    $SketchText.Contains('command == "ACCEPTANCE"') -and
+    $SketchText.Contains("static void print_serial_acceptance_status()") -and
+    $SketchText.Contains("acceptance flow=") -and
+    $SketchText.Contains("acceptance battle=") -and
+    $SketchText.Contains("acceptance friend=") -and
+    $SketchText.Contains("acceptance runtime=") -and
+    $UsageText.Contains("ACCEPTANCE") -and
+    $DeviceAcceptanceText.Contains("ACCEPTANCE") -and
     $SketchText.Contains('value == "friend"') -and
     $SketchText.Contains("ACT photo|bag|match|idle") -and
     $SketchText.Contains("confirm_release|cancel|friend") -and
@@ -715,10 +725,10 @@ $BattleRoundEvidence = @(
     "draw_pet_avatar(92, 116, localBattleGenes, false)",
     "draw_battle_score_plate(",
     "battle_round_scores_for_phase(",
-    'CoreS3.Display.printf("ME %ld"',
-    'CoreS3.Display.printf("RIVAL %ld"',
+    'CoreS3.Display.printf("P1 %ld"',
+    'CoreS3.Display.printf("P2 %ld"',
     "draw_battle_impact(",
-    'CoreS3.Display.printf("同步局%04lX"',
+    'CoreS3.Display.printf("ID%04lX"',
     "draw_battle_round_summary(",
     "draw_battle_round_summary(18, 124, app_last_battle_power_diff",
     "draw_battle_round_chip(",
@@ -754,6 +764,36 @@ if ($MissingBattleRoundEvidence.Count -eq 0 -and $BattleResultDoc) {
         $MissingBattleRoundEvidence += "settlement verdict card doc"
     }
     Add-Fail ("BATTLE clash/result is missing round FX or mirrored local battle ID evidence: " + ($MissingBattleRoundEvidence -join ", "))
+}
+
+$GlyphSafeSmallTextEvidence = @(
+    'CoreS3.Display.print("SUBJ")',
+    'CoreS3.Display.print("REC")',
+    'CoreS3.Display.printf("P1 %ld"',
+    'CoreS3.Display.printf("P2 %ld"',
+    'CoreS3.Display.print("BAG 0/6")',
+    'CoreS3.Display.print("ACTIVE PET")',
+    'CoreS3.Display.printf("BAG %u/%u WIN %u%% GROW %us"',
+    'CoreS3.Display.printf("WILD: %s  BAG:%u/%u"',
+    'snprintf(line, sizeof(line), "%s  REC:%u  PR:%u"',
+    'snprintf(line, sizeof(line), "E:%s  RGB:%u,%u,%u  S:%ld"',
+    'CoreS3.Display.printf("P%u A%u"',
+    'CoreS3.Display.printf("S%u  XP+%u"',
+    'draw_labeled_meter(188, 92, "P"',
+    'draw_labeled_meter(188, 112, "A"',
+    'draw_labeled_meter(188, 132, "S"',
+    'snprintf(out, outSize, "EVO-%uXP"',
+    'snprintf(out, outSize, "LV-%uXP"'
+)
+$MissingGlyphSafeSmallText = $GlyphSafeSmallTextEvidence | Where-Object { !$SketchText.Contains($_) }
+$GlyphSafeSmallTextDoc = $DocText.Contains("glyph-safe ASCII")
+if ($MissingGlyphSafeSmallText.Count -eq 0 -and $GlyphSafeSmallTextDoc) {
+    Add-Pass "Small-font device labels use glyph-safe ASCII to avoid CoreS3 font fallback boxes"
+} else {
+    if (!$GlyphSafeSmallTextDoc) {
+        $MissingGlyphSafeSmallText += "glyph-safe ASCII doc"
+    }
+    Add-Fail ("Small-font glyph-safe label evidence is missing: " + ($MissingGlyphSafeSmallText -join ", "))
 }
 
 $ClashDrawIndex = $SketchText.IndexOf("draw_battle_clash(packet);")

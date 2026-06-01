@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from audit_vision_scene_coverage import audit as audit_scene_coverage
+from audit_hf_dataset_publishability import audit as audit_dataset_publishability
+from audit_hf_dataset_publishability import summarize as summarize_dataset_publishability
 
 
 SECRET_PATTERNS = [
@@ -129,6 +131,23 @@ def validate_sd_payload(root: Path) -> Check:
     return Check("sd_payload_validation", status, detail)
 
 
+def validate_hf_dataset(root: Path, samples_root: Path) -> Check:
+    checks = audit_dataset_publishability(
+        samples_root=samples_root,
+        repo_root=root,
+        min_positive=30,
+        min_negative=50,
+        min_scene_negative=20,
+    )
+    status = summarize_dataset_publishability(checks)
+    if status == "READY":
+        return Check("hf_dataset_publishability", "PASS", "READY")
+    failed = [check.name for check in checks if check.status == "FAIL"]
+    pending = [check.name for check in checks if check.status == "PENDING"]
+    detail = ", ".join((failed or pending)[:5]) or status
+    return Check("hf_dataset_publishability", "FAIL" if failed else "PENDING", detail)
+
+
 def check_release_assets(root: Path, samples_root: Path) -> list[Check]:
     checks: list[Check] = []
 
@@ -150,6 +169,7 @@ def check_release_assets(root: Path, samples_root: Path) -> list[Check]:
         ("release/oshw/video-shot-list.md", "video shot list"),
         ("release/oshw/verification-log-template.csv", "verification log template"),
         ("release/oshw/hf-dataset-card-template.md", "HF dataset card template"),
+        ("release/oshw/hf-dataset-manifest.csv", "HF sanitized manifest"),
     ]
     for relative, label in required_files:
         add_file_check(checks, root, relative, label)
@@ -175,6 +195,7 @@ def check_release_assets(root: Path, samples_root: Path) -> list[Check]:
     samples_report = samples_root / "report.json"
     checks.append(Check("hf_sample_manifest", "PASS" if samples_manifest.exists() else "PENDING", str(samples_manifest)))
     checks.append(Check("hf_training_report", "PASS" if samples_report.exists() else "PENDING", str(samples_report)))
+    checks.append(validate_hf_dataset(root, samples_root))
     checks.append(validate_sd_payload(root))
     scene_coverage = audit_scene_coverage(samples_root, min_negative=20)
     if scene_coverage["status"] == "READY":

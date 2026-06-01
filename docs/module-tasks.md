@@ -52,7 +52,7 @@
 
 ## 玩家流程、背包养成与 UI 模块
 
-任务来源：`v0.1/module5.txt` 中的玩家流程任务书。该模块只设计和记录
+任务来源：`v0.1/module3.txt` 中的玩家流程任务书。该模块只设计和记录
 玩家体验；任何需要持久化字段、公共枚举、战斗包或协议变化的需求，都先
 输出接口变更建议。
 
@@ -66,6 +66,8 @@
 - 规划对战音效触发点，同时保留 `kAudioMuted` 静音开关。
 - 设计本地友情机制：再战奖励、最近对手、友情提示。
 - 玩家界面隐藏 `HOST`、`CLIENT` 等底层通信概念。
+- 设备小字号信息区使用 glyph-safe ASCII 标签，避免 CoreS3 小字体缺字时
+  显示方框乱码；大标题和底部按钮继续保留中文。
 
 输出文档：
 
@@ -77,6 +79,8 @@
 - UI 信息结构清楚，按钮文案和动作一致。
 - 战斗有 `READY`、`CLASH`、`RESULT` 等阶段过程，而不是只显示最终结果。
 - 背包能体现养成进度和战斗记录。
+- IDLE/WILD/BAG/MATCH/BATTLE 的小字号状态行不出现缺字方框，使用
+  `SUBJ`、`REC`、`BAG`、`WIN`、`GROW`、`P/A/S`、`P1/P2` 等短标签。
 - 静音开关仍有效。
 - 不修改通信协议，不修改 BattlePetPacket，不改公共枚举值。
 
@@ -157,6 +161,56 @@ MVP 功能：
 - `GET_BATTLE_STATUS`
 - `EXPORT_LOG`
 - `EXPORT_SAMPLE_INDEX`
+
+## 通信、烧录与硬件验证模块
+
+任务来源：`v0.1/module4.txt`。该模块接收当前工作树的可烧录固件和
+交付材料，负责最终编译、烧录、端口记录和实机验收；不得在烧录前修改
+公共头文件、背包格式或 UDP 包结构。
+
+当前已放入模块的烧录输入：
+
+- 主程序：`arduino_demos/04_camera_pet_battle/04_camera_pet_battle.ino`
+- 编译脚本：`scripts/compile-demo.ps1`
+- 当前建议编译根目录：`C:\tmp\m5_arduino_build_full_flash_ready`
+- 最近编译记录：`release/oshw/verification-log.csv`
+- 烧录交付说明：`release/oshw/delivery-notes.md`
+- 本地 AI/网页桥接工具：`tools/ai_bridge/bridge.py`
+- 发布包检查：`scripts/check-open-release-readiness.py`
+- SD 资源包检查：`scripts/validate-sd-payload.py`
+- HF 数据集发布预审：`scripts/audit_hf_dataset_publishability.py`
+- HF 脱敏 manifest 导出：`scripts/export_hf_dataset_manifest.py`
+- HF 脱敏 manifest：`release/oshw/hf-dataset-manifest.csv`
+
+烧录前已完成的功能模块：
+
+- 捕捉识别、失败门控、8 类识别到五行宠物生成链路。
+- 宠物库视觉变体、图鉴、宠物状态、背包和放生确认。
+- `/app` 识别调试面板、采样模式、实时质量仪表和样本导出。
+- `/api/v1/status`、`/api/v1/storage`、`/api/v1/sampling`、
+  `/api/v1/samples`、`/api/v1/samples/manifest`、
+  `/api/v1/samples/file` 等本地 HTTP 验收入口。
+- 串口 `STATUS`、`ACCEPTANCE`、`BAGSTATUS`、`SAMPLE`、`EDGE_HINT`、
+  `HUSKY_HINT`、`SDINFO`、`SDPUT` 验收和调试命令。
+- 电脑网页 `http://127.0.0.1:8790/` 和手机局域网页面
+  `http://<电脑局域网 IPv4>:8791/` 的桥接入口；其中 AI 周边工坊只在
+  电脑端保存资产，不写入固件或 SD 卡。
+- SD 声音包、皮肤包、动作包及资源校验。
+- 对战技能展示、回放日志、外部识别 hint 兼容路径。
+- 对战分数面板已面向玩家显示“我方/对手”，不暴露 HOST/CLIENT。
+- Edge Impulse/FOMO、HuskyLens、ESP-IDF 视觉实验骨架。
+- OSHWHub/OSHWHLab 与 Hugging Face 发布材料草稿。
+
+烧录模块仍需现场填写：
+
+- `release/oshw/verification-log.csv` 中的端口、flash_ok、App、SD、
+  捕捉、对战和双板结果。
+- 两块 CoreS3 的实际烧录端口和烧录日志。
+- 串口 `ACCEPTANCE` 四行输出截图或复制记录。
+- `STATUS`、`BAGSTATUS`、`SAMPLE status`、`SDINFO` 的现场输出。
+- `release/oshw/photos/` 下的公开实物照片。
+- 白纸和反光场景的真实 CoreS3 negative 样本补采。
+- Hugging Face 样本 license/privacy 审核结果。
 
 ## 云端增强模块
 

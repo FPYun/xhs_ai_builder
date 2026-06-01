@@ -414,7 +414,7 @@ Evidence:
   RELEASE_CONFIRM, MATCH, BATTLE pet-entry, three-round clash, result, and exit
   flows.
 - Backpack display includes active/stored state, level, stage, XP, element,
-  mood, growth-boosted 力/速/心 battle stats, wins/total battles, win rate, next
+  mood, growth-boosted P/A/S battle stats, wins/total battles, win rate, next
   evolution/level XP target, and a waiting-growth progress meter.
 - `/app` pet cards and USB serial `STATUS` expose the same next evolution/level
   XP target and growth-boosted battle stats through existing runtime data,
@@ -565,6 +565,10 @@ Taskbook acceptance coverage:
   built-in synthesized cue when the card or file is unavailable.
 - No public interface change is required for the local persisted friendship
   mechanism; it uses an independent `wuxingfr` Preferences namespace.
+- Device small-detail labels use glyph-safe ASCII (`SUBJ`, `REC`, `BAG`,
+  `WIN`, `GROW`, `P/A/S`, `P1/P2`, `F/C/B`) so the same sketch can be burned
+  from other module workflows without reintroducing CoreS3 small-font fallback
+  boxes. This does not change public headers, storage fields, or UDP packets.
 
 Static acceptance checks used for Module 3:
 
@@ -575,6 +579,8 @@ Static acceptance checks used for Module 3:
 - Confirm no `Say PAIZHAO` or voice-recognition entry text remains.
 - Confirm `kAudioMuted` exists and scene sounds are triggered through
   `play_scene_sound`.
+- Confirm small-font device labels use glyph-safe ASCII and do not rely on
+  Chinese glyphs that may be missing from the CoreS3 small font.
 - Confirm `docs/player-flow-ui.md` contains the taskbook output sections.
 
 ## Hardware Verification
@@ -1054,3 +1060,121 @@ Verification:
   `scripts/audit_vision_scene_coverage.py --strict`.
 - `python .\scripts\check-open-release-readiness.py` now keeps
   `vision_scene_coverage` as `PENDING` until those scene samples exist.
+
+## SD Payload Validation Update 2026-06-01
+
+Implemented evidence:
+
+- Added `scripts/validate-sd-payload.py`, a standard-library validator for the
+  optional SD payload package.
+- The validator checks `sd_card_payload/manifest.csv` paths, declared sizes,
+  `.raw` audio format metadata, 22050 Hz sample rate, and 32768-byte per-file
+  limit.
+- It also checks `skins/manifest.csv`, `actions/manifest.csv`, palette CSV
+  keys, action profile keys, v1 version fields, and value ranges that match the
+  firmware fallback behavior.
+- `scripts/check-open-release-readiness.py` now includes `sd_payload_validation`
+  so public-release checks fail on malformed SD resource packs.
+
+Boundary evidence:
+
+- This is a packaging and documentation gate only.
+- No firmware source, public header, backpack storage, dependency, or UDP packet
+  is changed by this update.
+
+Verification:
+
+- `python .\scripts\validate-sd-payload.py --payload .\sd_card_payload`
+  reports `sd payload validation: PASS`.
+- `python -m py_compile .\scripts\validate-sd-payload.py .\scripts\check-open-release-readiness.py`
+  passes.
+- `python .\scripts\check-open-release-readiness.py` reports
+  `sd_payload_validation: PASS`; overall readiness is controlled by the other
+  release gates listed in the current check output.
+
+## HF Dataset Publishability Audit Update 2026-06-01
+
+Implemented evidence:
+
+- Added `scripts/audit_hf_dataset_publishability.py`, a standard-library
+  preflight for Hugging Face dataset publication.
+- The audit checks local `manifest.csv` existence, required columns, class
+  presence, minimum class counts, sample file existence, user-home path markers,
+  absolute publish paths, public-source license review, training report quality,
+  required negative scene coverage, and dataset card draft markers.
+- `scripts/check-open-release-readiness.py` now includes
+  `hf_dataset_publishability`, so a malformed or outdated sample manifest becomes
+  a release `FAIL` instead of a hidden note.
+- Updated `release/oshw/README.md`, `docs/open-source-release-package.md`, and
+  `docs/open-platform-extension-audit.md` with the new audit command and current
+  dataset release boundary.
+
+Boundary evidence:
+
+- The audit only reads local manifest/report/card metadata.
+- It does not upload data, download data, modify samples, add dependencies,
+  change firmware, or alter public headers, storage, or UDP packets.
+
+Verification:
+
+- `python .\scripts\audit_hf_dataset_publishability.py --samples-root C:\tmp\m5_vision_samples`
+  currently reports `FAIL` because `C:\tmp\m5_vision_samples\manifest.csv` is an
+  old-format manifest without the required `scene` column.
+- The same audit also reports `PENDING` for absolute manifest paths, public
+  source license review, `data_quality=weak`, missing real negative scene
+  coverage, and the draft dataset card marker.
+- `python .\scripts\check-open-release-readiness.py` now reports
+  `hf_dataset_publishability: FAIL` for that manifest schema issue, while
+  `sd_payload_validation` still reports `PASS`.
+
+## Delivery Refresh 2026-06-01
+
+Implemented evidence:
+
+- Refreshed `C:\tmp\m5_vision_samples\manifest.csv` and
+  `C:\tmp\m5_vision_samples\report.json` with the existing
+  `scripts/train_vision_feature_model.py` flow.
+- The refreshed manifest now includes the required `scene` column.
+- The refreshed report includes `scene_sample_counts` and `scene_eval`.
+- Regenerated `release/oshw/hf-dataset-card.md` from the refreshed metadata.
+- Added `release/oshw/delivery-notes.md` for the fast handoff state.
+
+Verification:
+
+- `.\scripts\compile-demo.ps1 -Sketch .\arduino_demos\04_camera_pet_battle\04_camera_pet_battle.ino -BuildRoot C:\tmp\m5_arduino_build_hf_manifest_refresh`
+  passes: program storage `1607857` bytes, global variables `69268` bytes.
+- `python .\scripts\audit_hf_dataset_publishability.py --samples-root C:\tmp\m5_vision_samples`
+  now reports `INCOMPLETE`, not `FAIL`; manifest schema passes.
+- `python .\scripts\check-open-release-readiness.py` now reports `INCOMPLETE`,
+  with `hf_dataset_publishability` as `PENDING` rather than `FAIL`.
+
+Remaining delivery notes:
+
+- The dataset is still not ready for public Hugging Face upload because paths
+  need sanitizing, public sample licenses need review, model quality remains
+  weak, `white_paper` and `glare` negative coverage is still short, and the
+  dataset card remains draft.
+- Public OSHWHub/OSHWHLab posting still needs real hardware photos and a filled
+  verification log.
+
+## HF Dataset Manifest Sanitization Update 2026-06-01
+
+Implemented evidence:
+
+- Added `scripts/export_hf_dataset_manifest.py`.
+- Generated `release/oshw/hf-dataset-manifest.csv` from
+  `C:\tmp\m5_vision_samples\manifest.csv`.
+- The generated manifest uses relative `data/<source>/<class>/<sha1>.<ext>`
+  publish paths and keeps license/privacy/include review columns explicit.
+- `scripts/audit_hf_dataset_publishability.py` now treats the sanitized manifest
+  as evidence for `relative_publish_paths`.
+- `scripts/check-open-release-readiness.py` now requires
+  `release/oshw/hf-dataset-manifest.csv` in the release kit.
+
+Verification:
+
+- `python .\scripts\export_hf_dataset_manifest.py --samples-root C:\tmp\m5_vision_samples --out .\release\oshw\hf-dataset-manifest.csv`
+  writes `2417` rows.
+- `python .\scripts\check-open-release-readiness.py` reports
+  `HF sanitized manifest: PASS` and keeps overall readiness `INCOMPLETE` only
+  for review/data/hardware pending items.

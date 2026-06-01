@@ -1,0 +1,2 @@
+date,firmware_build,port,flash_ok,app_status_ok,storage_ok,sample_export_ok,capture_negative_ok,capture_positive_ok,battle_single_ok,battle_dual_ok,notes
+2026-06-01,"compile-demo C:\tmp\m5_arduino_build_full_flash_ready; sketch=1607857 bytes; globals=69268 bytes",pending,pending,pending,pending,pending,pending,pending,pending,pending,"Build verified locally. Hardware flash, /app phone flow, serial ACCEPTANCE/BAGSTATUS, SD card, capture, and battle checks require onsite CoreS3 verification before public release."

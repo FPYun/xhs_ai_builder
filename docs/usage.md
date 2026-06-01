@@ -43,6 +43,9 @@ USB serial at 115200 baud can drive the same state machine for bench testing:
 - `STATUS`: print current screen, button labels, backpack count, active pet,
   growth target, growth-boosted stats, friendship summary, recent battle
   result, and battle phase.
+- `ACCEPTANCE`: print a compact bench-check summary for the physical acceptance
+  pass: current flow/buttons, active pet/backpack, battle phase/result,
+  friendship/rematch, SD, mute, camera, and sampling state.
 - `SAMPLE on|off [label] [scene]`: enable or disable SD sample labeling from
   serial, optionally setting the active label and scene in the same command.
 - `SAMPLE label <label>` and `SAMPLE scene <scene>`: update the RAM-only sample
@@ -198,10 +201,10 @@ Pet records contain:
 6. Pet packets are exchanged locally through UDP port `42105`.
 7. Once each board sees the other pet, the BATTLE screen first shows a short
    pet-entry and three-round clash phase with both pet names, level badges,
-   力/克/心 progress, center VS impact beams, and one-shot round cues.
+   P/E/S progress, center VS impact beams, and one-shot round cues.
 8. The result is calculated locally and shows a settlement verdict card, total
    score difference, a mirrored local battle ID that both boards can compare,
-   both scores, 力/克/心 summary chips, XP gain, and any rematch friendship bonus.
+   both scores, P/E/S summary chips, XP gain, and any rematch friendship bonus.
    The exit screen shows a compact result badge, a
    NEXT line for BAG/IDLE/PHOTO or the rematch XP opportunity, the
    recent opponent pet name and level when available, friendship state,
@@ -210,9 +213,14 @@ Pet records contain:
 
 MATCH player status uses neutral player wording:
 
-- 寻找对手 / 配对中: searching for the other board.
-- 连接就绪: link is established.
-- 准备开战: both pets are visible with a center VS badge and battle can resolve.
+- MATCHING / PAIRING: searching for the other board.
+- CONNECTED: link is established.
+- READY: both pets are visible with a center VS badge and battle can resolve.
+
+The device uses glyph-safe ASCII for dense small-font labels (`SUBJ`, `REC`,
+`BAG`, `WIN`, `GROW`, `P/A/S`, `P1/P2`, `F/C/B`) to avoid CoreS3 missing-glyph
+boxes. Burning the main sketch from another module workflow will include these
+display fixes because they live in `arduino_demos/04_camera_pet_battle/04_camera_pet_battle.ino`.
 
 If MATCH is opened without an active pet, the device shows a preparation card:
 go to BAG to choose a stored pet, or use PHOTO to capture the first pet when the

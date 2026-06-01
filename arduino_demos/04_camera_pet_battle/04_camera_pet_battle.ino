@@ -342,9 +342,9 @@ static void draw_capture_quality_panel(int16_t x, int16_t y, uint8_t subjectScor
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(TFT_WHITE, bg);
     CoreS3.Display.setCursor(x + 10, y + 4);
-    CoreS3.Display.print("主体");
+    CoreS3.Display.print("SUBJ");
     CoreS3.Display.setCursor(x + 10, y + 17);
-    CoreS3.Display.print("识别");
+    CoreS3.Display.print("REC");
     CoreS3.Display.setTextColor(TFT_CYAN, bg);
     CoreS3.Display.setCursor(x + 142, y + 4);
     CoreS3.Display.printf("%u", subjectScore);
@@ -400,9 +400,9 @@ static void draw_battle_score_plate(int16_t x, int16_t y, int16_t w, const char*
     CoreS3.Display.print(label);
     CoreS3.Display.setTextColor(diffColor, bg);
     CoreS3.Display.setCursor(x + 8, y + 20);
-    CoreS3.Display.printf("ME %ld", static_cast<long>(myScore));
-    CoreS3.Display.setCursor(x + w - 76, y + 20);
-    CoreS3.Display.printf("RIVAL %ld", static_cast<long>(peerScore));
+    CoreS3.Display.printf("P1 %ld", static_cast<long>(myScore));
+    CoreS3.Display.setCursor(x + w - 82, y + 20);
+    CoreS3.Display.printf("P2 %ld", static_cast<long>(peerScore));
     draw_delta_meter(x + 8, y + 34, static_cast<int16_t>(w - 16), 7,
                      myScore - peerScore, maxAbs);
 }
@@ -421,10 +421,10 @@ static void draw_battle_result_card(int16_t x, int16_t y, int16_t w, const char*
     CoreS3.Display.print(result);
     CoreS3.Display.setTextColor(TFT_WHITE, bg);
     CoreS3.Display.setCursor(x + 76, y + 5);
-    CoreS3.Display.printf("差%+ld", static_cast<long>(diff));
+    CoreS3.Display.printf("DIFF%+ld", static_cast<long>(diff));
     CoreS3.Display.setTextColor(TFT_CYAN, bg);
     CoreS3.Display.setCursor(x + w - 62, y + 5);
-    CoreS3.Display.printf("局%04lX", static_cast<unsigned long>(battleId & 0xffffUL));
+    CoreS3.Display.printf("ID%04lX", static_cast<unsigned long>(battleId & 0xffffUL));
     draw_delta_meter(x + 10, y + 24, static_cast<int16_t>(w - 20), 7, diff, 160);
 }
 
@@ -445,7 +445,7 @@ static void draw_match_sync_meter(int16_t x, int16_t y, uint8_t step, uint16_t a
     uint16_t bg = rgb(18, 22, 30);
     uint16_t idle = rgb(72, 78, 90);
     int16_t xs[3] = { x, static_cast<int16_t>(x + 38), static_cast<int16_t>(x + 76) };
-    const char* labels[3] = { "寻", "连", "战" };
+    const char* labels[3] = { "F", "C", "B" };
 
     CoreS3.Display.drawLine(xs[0], y, xs[2], y, idle);
     for (uint8_t i = 0; i < 3; ++i) {
@@ -465,7 +465,7 @@ static void draw_battle_round_track(int16_t x, int16_t y, uint8_t phase, int32_t
 {
     uint16_t bg = rgb(9, 10, 15);
     uint16_t idle = rgb(72, 78, 90);
-    const char* labels[3] = { "力", "克", "心" };
+    const char* labels[3] = { "P", "E", "S" };
     if (phase > 2) {
         phase = 2;
     }
@@ -536,15 +536,15 @@ static void draw_battle_round_chip(int16_t x, int16_t y, const char* label, int3
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(TFT_WHITE, bg);
     CoreS3.Display.setCursor(x + 15, y + 1);
-    const char* verdict = diff > 0 ? "胜" : (diff < 0 ? "负" : "平");
+    const char* verdict = diff > 0 ? "W" : (diff < 0 ? "L" : "D");
     CoreS3.Display.printf("%s%s%+ld", label, verdict, static_cast<long>(diff));
 }
 
 static void draw_battle_round_summary(int16_t x, int16_t y, int32_t powerDiff, int32_t elementSwing, int32_t spiritDiff)
 {
-    draw_battle_round_chip(x, y, "力", powerDiff);
-    draw_battle_round_chip(x + 98, y, "克", elementSwing);
-    draw_battle_round_chip(x + 196, y, "心", spiritDiff);
+    draw_battle_round_chip(x, y, "P", powerDiff);
+    draw_battle_round_chip(x + 98, y, "E", elementSwing);
+    draw_battle_round_chip(x + 196, y, "S", spiritDiff);
 }
 
 static void draw_capture_guide(int16_t x, int16_t y, uint16_t color)
@@ -566,7 +566,7 @@ static void draw_capture_guide(int16_t x, int16_t y, uint16_t color)
     CoreS3.Display.setFont(&fonts::efontCN_16);
     CoreS3.Display.setTextDatum(middle_center);
     CoreS3.Display.setTextColor(TFT_WHITE, bg);
-    CoreS3.Display.drawString("置中", x + 56, y + 38);
+    CoreS3.Display.drawString("CENTER", x + 56, y + 38);
     CoreS3.Display.setFont(&fonts::Font2);
     CoreS3.Display.setTextDatum(top_left);
 }
@@ -3573,11 +3573,11 @@ static void draw_pet_badge(const ImageTraits& traits, const RecognitionResult& r
     CoreS3.Display.drawRoundRect(8, 54, 304, 46, 8, rgb(92, 92, 102));
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(20, 20, 24));
     CoreS3.Display.setCursor(16, 62);
-    snprintf(line, sizeof(line), "%s  识别:%u  存在:%u",
+    snprintf(line, sizeof(line), "%s  REC:%u  PR:%u",
              recog.objectLabel, recog.confidence, recog.presenceScore);
     CoreS3.Display.print(line);
     CoreS3.Display.setCursor(16, 82);
-    snprintf(line, sizeof(line), "元素:%s  色彩:%u,%u,%u  S:%ld",
+    snprintf(line, sizeof(line), "E:%s  RGB:%u,%u,%u  S:%ld",
              element_name(genes.element), traits.r, traits.g, traits.b,
              static_cast<long>(traits.saturation));
     CoreS3.Display.print(line);
@@ -3651,13 +3651,13 @@ static void format_growth_goal(char* out, size_t outSize, const SavedPet& pet)
         return;
     }
     if (pet.level >= 30) {
-        snprintf(out, outSize, "满级");
+        snprintf(out, outSize, "MAX");
     } else if (pet.level < 5) {
-        snprintf(out, outSize, "进化差%uXP", xp_to_level_target(pet, 5));
+        snprintf(out, outSize, "EVO-%uXP", xp_to_level_target(pet, 5));
     } else if (pet.level < 12) {
-        snprintf(out, outSize, "进化差%uXP", xp_to_level_target(pet, 12));
+        snprintf(out, outSize, "EVO-%uXP", xp_to_level_target(pet, 12));
     } else {
-        snprintf(out, outSize, "升级差%uXP", xp_to_level_target(pet, pet.level + 1));
+        snprintf(out, outSize, "LV-%uXP", xp_to_level_target(pet, pet.level + 1));
     }
 }
 
@@ -3797,7 +3797,7 @@ static void format_growth_notice(char* out, size_t outSize)
     if (out == nullptr || outSize == 0) {
         return;
     }
-    const char* growth = last_growth_stage_up ? "进化" : (last_growth_level_up ? "升级" : "成长");
+    const char* growth = last_growth_stage_up ? "EVO" : (last_growth_level_up ? "LV" : "GROW");
     snprintf(out, outSize, "#%u %s XP+%u Lv%u %s",
              static_cast<unsigned>(last_growth_pet_index + 1),
              growth,
@@ -3856,7 +3856,7 @@ static void draw_release_confirm_summary(int16_t x, int16_t y, int16_t w,
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(TFT_WHITE, bg);
     CoreS3.Display.setCursor(x + 7, y + 4);
-    CoreS3.Display.printf("#%u/%u %s", index + 1, count, active ? "出战" : "收藏");
+    CoreS3.Display.printf("#%u/%u %s", index + 1, count, active ? "ACTIVE" : "STORED");
     CoreS3.Display.setTextColor(TFT_CYAN, bg);
     CoreS3.Display.setCursor(x + 74, y + 4);
     CoreS3.Display.print(stage_name(pet.stage));
@@ -4041,13 +4041,13 @@ static uint8_t friend_bond_rank(uint8_t score)
 static const char* friend_bond_name_for(uint32_t peerId, uint8_t score)
 {
     if (peerId == 0) {
-        return "等待好友";
+        return "WAIT";
     }
     switch (friend_bond_rank(score)) {
-    case 2: return "密友";
-    case 1: return "好友";
+    case 2: return "CLOSE";
+    case 1: return "FRIEND";
     default:
-        return "新朋友";
+        return "NEW";
     }
 }
 
@@ -4202,14 +4202,14 @@ static uint16_t record_friendship_bonus(const BattlePetPacket& opponent)
     last_friend_added = newFriend;
     last_friend_bond_up = afterRank > beforeRank;
     if (last_friend_bond_up) {
-        snprintf(last_friend_notice, sizeof(last_friend_notice), "羁绊升格:%s",
+        snprintf(last_friend_notice, sizeof(last_friend_notice), "BOND UP:%s",
                  friend_bond_name_for(record->peerId, record->score));
     } else if (last_friend_added) {
-        snprintf(last_friend_notice, sizeof(last_friend_notice), "新好友已添加");
+        snprintf(last_friend_notice, sizeof(last_friend_notice), "FRIEND ADDED");
     } else if (rematch) {
-        snprintf(last_friend_notice, sizeof(last_friend_notice), "连战奖励生效");
+        snprintf(last_friend_notice, sizeof(last_friend_notice), "REMATCH BONUS");
     } else {
-        snprintf(last_friend_notice, sizeof(last_friend_notice), "友情+%u", scoreGain);
+        snprintf(last_friend_notice, sizeof(last_friend_notice), "FRIEND+%u", scoreGain);
     }
     save_friendship_state();
     return rematch ? static_cast<uint16_t>(record->rematchStreak * kRematchXpStep) : 0;
@@ -4275,26 +4275,26 @@ static const char* friendship_prompt()
 {
     static char prompt[32];
     if (last_friend_peer_id == 0) {
-        return "首次对战后自动添加好友";
+        return "FIRST BATTLE ADDS FRIEND";
     }
     if (friend_score >= 100) {
-        return "已结成密友";
+        return "CLOSE FRIEND";
     }
     uint8_t projectedScore = min<uint8_t>(100, static_cast<uint8_t>(friend_score + next_friendship_score_gain()));
     if (friend_score < 60 && projectedScore >= 60) {
-        return "再战可成好友";
+        return "REMATCH FOR FRIEND";
     }
     if (friend_score < 100 && projectedScore >= 100) {
-        return "再战可成密友";
+        return "REMATCH FOR CLOSE";
     }
     if (friend_rematch_streak > 0) {
-        return "连战奖励生效";
+        return "REMATCH BONUS";
     }
     if (friend_score >= 60) {
-        snprintf(prompt, sizeof(prompt), "距密友还%u", static_cast<uint8_t>(100 - friend_score));
+        snprintf(prompt, sizeof(prompt), "CLOSE-%u", static_cast<uint8_t>(100 - friend_score));
         return prompt;
     }
-    snprintf(prompt, sizeof(prompt), "距好友还%u", static_cast<uint8_t>(60 - friend_score));
+    snprintf(prompt, sizeof(prompt), "FRIEND-%u", static_cast<uint8_t>(60 - friend_score));
     return prompt;
 }
 
@@ -4302,16 +4302,16 @@ static const char* friendship_goal_badge()
 {
     static char badge[20];
     if (last_friend_peer_id == 0) {
-        return "待添加";
+        return "ADD";
     }
     if (friend_score >= 100) {
-        return "密友";
+        return "CLOSE";
     }
     if (friend_score >= 60) {
-        snprintf(badge, sizeof(badge), "密友差%u", static_cast<uint8_t>(100 - friend_score));
+        snprintf(badge, sizeof(badge), "CLOSE-%u", static_cast<uint8_t>(100 - friend_score));
         return badge;
     }
-    snprintf(badge, sizeof(badge), "好友差%u", static_cast<uint8_t>(60 - friend_score));
+    snprintf(badge, sizeof(badge), "FRIEND-%u", static_cast<uint8_t>(60 - friend_score));
     return badge;
 }
 
@@ -4362,7 +4362,7 @@ static bool add_current_friend(char* out, size_t outSize)
     uint32_t peerId = current_friend_candidate_id();
     if (peerId == 0) {
         if (out != nullptr && outSize > 0) {
-            snprintf(out, outSize, "暂无可添加对手");
+            snprintf(out, outSize, "NO RIVAL TO ADD");
         }
         return false;
     }
@@ -4371,7 +4371,7 @@ static bool add_current_friend(char* out, size_t outSize)
     LocalFriendRecord* record = ensure_friend_slot(peerId);
     if (record == nullptr) {
         if (out != nullptr && outSize > 0) {
-            snprintf(out, outSize, "好友添加失败");
+            snprintf(out, outSize, "ADD FRIEND FAIL");
         }
         return false;
     }
@@ -4383,7 +4383,7 @@ static bool add_current_friend(char* out, size_t outSize)
     activate_friend_record(*record);
     last_friend_added = added;
     last_friend_bond_up = false;
-    snprintf(last_friend_notice, sizeof(last_friend_notice), added ? "好友已添加" : "好友已在列表");
+    snprintf(last_friend_notice, sizeof(last_friend_notice), added ? "FRIEND ADDED" : "FRIEND EXISTS");
     if (out != nullptr && outSize > 0) {
         snprintf(out, outSize, "%s #%06lX",
                  last_friend_notice,
@@ -4414,13 +4414,13 @@ static const char* battle_outcome_label(const char* outcome)
         return "";
     }
     if (strcmp(outcome, "win") == 0) {
-        return "获胜";
+        return "WIN";
     }
     if (strcmp(outcome, "loss") == 0) {
-        return "惜败";
+        return "LOSS";
     }
     if (strcmp(outcome, "draw") == 0) {
-        return "平局";
+        return "DRAW";
     }
     return outcome;
 }
@@ -4479,12 +4479,12 @@ static uint8_t current_battle_clash_phase()
 static const char* battle_round_title(uint8_t phase)
 {
     if (phase == 0) {
-        return "第1回合  力量交锋";
+        return "ROUND1 POWER";
     }
     if (phase == 1) {
-        return "第2回合  元素相克";
+        return "ROUND2 ELEMENT";
     }
-    return "最终回合  气势爆发";
+    return "ROUND3 SPIRIT";
 }
 
 static int32_t battle_round_diff_for_phase(uint8_t phase, const BattlePetPacket& mine, const BattlePetPacket& opponent)
@@ -4557,7 +4557,7 @@ static void draw_peer_waiting(const BattlePetPacket& packet)
     CoreS3.Display.setCursor(16, 78);
     CoreS3.Display.printf("%s", element_name(packet_element(packet)));
     CoreS3.Display.setCursor(16, 122);
-    CoreS3.Display.print("请先捕捉或选择伙伴");
+    CoreS3.Display.print("CAPTURE OR SELECT PET");
     draw_action_footer("背包", "休闲", "拍照", TFT_CYAN);
     display_hold_until_ms = millis() + 3500;
     play_scene_sound(kSoundBattleClash);
@@ -4604,14 +4604,14 @@ static void draw_battle_clash(const BattlePetPacket& opponent)
     CoreS3.Display.setCursor(20, 60);
     CoreS3.Display.print(species_name(local_pet));
     CoreS3.Display.setCursor(20, 86);
-    CoreS3.Display.printf("我方 Lv%u", mine.level);
+    CoreS3.Display.printf("P1 Lv%u", mine.level);
     CoreS3.Display.setCursor(176, 60);
     CoreS3.Display.printf("%s", species_name_by(packet_element(opponent), opponent.species));
     CoreS3.Display.setCursor(176, 86);
-    CoreS3.Display.printf("对手 Lv%u", opponent.level);
+    CoreS3.Display.printf("P2 Lv%u", opponent.level);
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(9, 10, 15));
     CoreS3.Display.setCursor(114, 120);
-    CoreS3.Display.printf("同步局%04lX", static_cast<unsigned long>(app_last_battle_id & 0xffffUL));
+    CoreS3.Display.printf("ID%04lX", static_cast<unsigned long>(app_last_battle_id & 0xffffUL));
 
     draw_battle_score_plate(52, 138, 216, battle_round_title(0),
                             myRoundScore, peerRoundScore, 80,
@@ -4687,42 +4687,42 @@ static void draw_battle_result(const BattlePetPacket& opponent)
 
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(24, 28, 36));
     CoreS3.Display.setCursor(20, 56);
-    CoreS3.Display.print("我方");
+    CoreS3.Display.print("P1");
     CoreS3.Display.setCursor(20, 76);
     CoreS3.Display.printf("Lv%u  %s", mine.level, element_name(packet_element(mine)));
     CoreS3.Display.setCursor(20, 96);
-    CoreS3.Display.printf("力:%u 速:%u", mine.power, mine.agility);
+    CoreS3.Display.printf("P:%u A:%u", mine.power, mine.agility);
     CoreS3.Display.setCursor(20, 116);
-    CoreS3.Display.printf("心:%u", mine.spirit);
+    CoreS3.Display.printf("S:%u", mine.spirit);
     CoreS3.Display.setCursor(20, 138);
-    CoreS3.Display.printf("分数:%ld", static_cast<long>(myScore));
+    CoreS3.Display.printf("SCORE:%ld", static_cast<long>(myScore));
 
     CoreS3.Display.setCursor(176, 56);
-    CoreS3.Display.print("对手");
+    CoreS3.Display.print("P2");
     CoreS3.Display.setCursor(176, 76);
     CoreS3.Display.printf("Lv%u  %s", opponent.level, element_name(packet_element(opponent)));
     CoreS3.Display.setCursor(176, 96);
-    CoreS3.Display.printf("力:%u 速:%u", opponent.power, opponent.agility);
+    CoreS3.Display.printf("P:%u A:%u", opponent.power, opponent.agility);
     CoreS3.Display.setCursor(176, 116);
-    CoreS3.Display.printf("心:%u", opponent.spirit);
+    CoreS3.Display.printf("S:%u", opponent.spirit);
     CoreS3.Display.setCursor(176, 138);
-    CoreS3.Display.printf("分数:%ld", static_cast<long>(peerScore));
+    CoreS3.Display.printf("SCORE:%ld", static_cast<long>(peerScore));
 
     CoreS3.Display.fillRoundRect(10, 150, 300, 34, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
     CoreS3.Display.setCursor(18, 156);
     if (last_friend_bond_up) {
-        CoreS3.Display.printf("%s XP+%u 友:%u", last_friend_notice, gainedXp, friendship_score());
+        CoreS3.Display.printf("%s XP+%u FR:%u", last_friend_notice, gainedXp, friendship_score());
     } else if (last_friend_added) {
-        CoreS3.Display.printf("新好友 XP+%u 友:%u", gainedXp, friendship_score());
+        CoreS3.Display.printf("NEW FRIEND XP+%u FR:%u", gainedXp, friendship_score());
     } else if (app_last_battle_stage_up && updatedPet != nullptr) {
-        CoreS3.Display.printf("XP+%u  进化:%s  友情 %u", gainedXp, stage_name(updatedPet->stage), friendship_score());
+        CoreS3.Display.printf("XP+%u  EVO:%s  F %u", gainedXp, stage_name(updatedPet->stage), friendship_score());
     } else if (app_last_battle_level_up && updatedPet != nullptr) {
-        CoreS3.Display.printf("XP+%u  升级 Lv%u  友情 %u", gainedXp, updatedPet->level, friendship_score());
+        CoreS3.Display.printf("XP+%u  LV%u  F %u", gainedXp, updatedPet->level, friendship_score());
     } else if (friendBonus > 0) {
-        CoreS3.Display.printf("XP+%u  友情 %u/100  +%u", gainedXp, friendship_score(), friendBonus);
+        CoreS3.Display.printf("XP+%u  F %u/100  +%u", gainedXp, friendship_score(), friendBonus);
     } else {
-        CoreS3.Display.printf("XP+%u  友情 %u/100", gainedXp, friendship_score());
+        CoreS3.Display.printf("XP+%u  F %u/100", gainedXp, friendship_score());
     }
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
     draw_battle_round_summary(18, 166, powerDiff, elementSwing, spiritDiff);
@@ -4796,7 +4796,7 @@ static void draw_battle_exit()
         CoreS3.Display.printf("%s %+ld", battle_outcome_label(app_last_battle_outcome),
                               static_cast<long>(app_last_battle_score_diff));
         CoreS3.Display.setCursor(226, 29);
-        CoreS3.Display.printf("局%04lX", static_cast<unsigned long>(app_last_battle_id & 0xffffUL));
+        CoreS3.Display.printf("ID%04lX", static_cast<unsigned long>(app_last_battle_id & 0xffffUL));
     }
 
     CoreS3.Display.fillRoundRect(12, 46, 296, 74, 8, rgb(20, 24, 32));
@@ -4806,13 +4806,13 @@ static void draw_battle_exit()
         CoreS3.Display.printf("%s  Lv%u  %s", species_name(pet->genes), pet->level, stage_name(pet->stage));
         draw_element_badge(260, 56, pet->genes.element, rgb(20, 24, 32));
         CoreS3.Display.setCursor(22, 80);
-        CoreS3.Display.printf("XP %u/%u  胜%u/%u %u%%", pet->xp, level_xp_need(pet->level),
+        CoreS3.Display.printf("XP %u/%u  W%u/%u %u%%", pet->xp, level_xp_need(pet->level),
                               pet->wins, pet->battles, win_rate_percent(*pet));
         draw_meter(22, 102, 266, 10, pet->xp, level_xp_need(pet->level), pet->genes.accentColor);
     } else {
-        CoreS3.Display.print("暂无当前伙伴");
+        CoreS3.Display.print("NO ACTIVE PET");
         CoreS3.Display.setCursor(22, 82);
-        CoreS3.Display.print("请到背包选择伙伴");
+        CoreS3.Display.print("SELECT IN BAG");
     }
 
     if (app_last_battle_result_valid) {
@@ -4831,9 +4831,9 @@ static void draw_battle_exit()
     CoreS3.Display.setCursor(22, infoLine1Y);
     uint16_t nextBonus = next_rematch_xp_bonus();
     if (nextBonus > 0) {
-        CoreS3.Display.printf("NEXT 休闲再战 +%uXP", nextBonus);
+        CoreS3.Display.printf("NEXT IDLE REMATCH +%uXP", nextBonus);
     } else {
-        CoreS3.Display.print("NEXT 背包 / 休闲 / 拍照");
+        CoreS3.Display.print("NEXT BAG / IDLE / PHOTO");
     }
     if (last_friend_peer_id != 0) {
         draw_friendship_badge(218, static_cast<int16_t>(infoLine1Y - 4), 82);
@@ -4841,12 +4841,12 @@ static void draw_battle_exit()
     CoreS3.Display.setCursor(22, infoLine2Y);
     if (last_friend_peer_id != 0) {
         if (app_last_opponent_species[0] != '\0') {
-            CoreS3.Display.printf("对手:%s Lv%u  友%u/100",
+            CoreS3.Display.printf("RIVAL:%s Lv%u  F%u/100",
                                   app_last_opponent_species,
                                   app_last_opponent_level,
                                   friendship_score());
         } else {
-            CoreS3.Display.printf("对手#%06lX  友%u/100  %s",
+            CoreS3.Display.printf("RIVAL#%06lX  F%u/100  %s",
                                   static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL),
                                   friendship_score(), friend_bond_name());
         }
@@ -5104,9 +5104,9 @@ static uint8_t match_sync_step()
 static const char* match_sync_step_label(uint8_t step)
 {
     switch (min<uint8_t>(step, 2)) {
-    case 2: return "准备开战";
-    case 1: return "羁绊同步";
-    default: return "寻找训练师";
+    case 2: return "READY";
+    case 1: return "PAIRING";
+    default: return "MATCHING";
     }
 }
 
@@ -5375,17 +5375,17 @@ static void refresh_match_status()
     CoreS3.Display.setCursor(14, 142);
     uint8_t step = match_sync_step();
     if (last_peer_seen_ms == 0) {
-        CoreS3.Display.printf("%s  %lu秒", match_sync_step_label(step),
+        CoreS3.Display.printf("%s  %lus", match_sync_step_label(step),
                               static_cast<unsigned long>((millis() - match_started_ms) / 1000));
     } else {
-        CoreS3.Display.printf("%s  对手#%06lX  %lu秒前",
+        CoreS3.Display.printf("%s  RIVAL#%06lX  %lus AGO",
                               match_sync_step_label(step),
                               static_cast<unsigned long>(battle_peer_id & 0xffffffUL),
                               static_cast<unsigned long>((millis() - last_peer_seen_ms) / 1000));
     }
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
     CoreS3.Display.setCursor(14, 162);
-    CoreS3.Display.print(last_peer_seen_ms == 0 ? "靠近训练机  中键休闲" : "准备开战  中键休闲");
+    CoreS3.Display.print(last_peer_seen_ms == 0 ? "MOVE CLOSER  M IDLE" : "OK  M IDLE");
     const SavedPet* pet = selected_pet_const();
     draw_match_sync_meter(208, 156, step, pet == nullptr ? TFT_CYAN : pet->genes.accentColor);
     maybe_play_match_sync_sound(step);
@@ -5433,7 +5433,7 @@ static void draw_idle_screen(const char* message, bool playSound)
 
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(8, 10, 14));
     CoreS3.Display.setCursor(16, 48);
-    CoreS3.Display.print(message == nullptr ? "拍照寻找野生伙伴" : message);
+    CoreS3.Display.print(message == nullptr ? "PHOTO TO FIND PET" : message);
 
     const SavedPet* pet = selected_pet_const();
     uint16_t cardBg = rgb(20, 24, 32);
@@ -5443,21 +5443,21 @@ static void draw_idle_screen(const char* message, bool playSound)
     CoreS3.Display.setCursor(24, 94);
     if (pet == nullptr) {
         if (backpack.count == 0) {
-            CoreS3.Display.print("空背包 0/6");
+            CoreS3.Display.print("BAG 0/6");
             CoreS3.Display.setCursor(24, 120);
-            CoreS3.Display.print("右键拍照捕捉伙伴");
+            CoreS3.Display.print("R PHOTO TO CATCH");
             CoreS3.Display.setCursor(24, 146);
-            CoreS3.Display.print("中键对战前先有伙伴");
+            CoreS3.Display.print("NEED PET FOR BATTLE");
             draw_capture_guide(188, 92, TFT_GREEN);
         } else {
-            CoreS3.Display.printf("背包已有%u只", backpack.count);
+            CoreS3.Display.printf("BAG %u/%u", backpack.count, kMaxBackpackPets);
             CoreS3.Display.setCursor(24, 120);
-            CoreS3.Display.print("左键背包选择出战");
+            CoreS3.Display.print("L BAG TO SELECT");
             draw_bag_slot_bar(24, 148, backpack.count, 255, backpack.selected, TFT_GREEN);
         }
     } else {
         draw_pet_avatar(258, 138, pet->genes, true);
-        CoreS3.Display.print("当前伙伴");
+        CoreS3.Display.print("ACTIVE PET");
         draw_element_badge(128, 92, pet->genes.element, cardBg);
         CoreS3.Display.setCursor(24, 112);
         CoreS3.Display.printf("%s  Lv%u", species_name(pet->genes), pet->level);
@@ -5466,29 +5466,29 @@ static void draw_idle_screen(const char* message, bool playSound)
         draw_meter(24, 148, 150, 9, pet->xp, level_xp_need(pet->level), pet->genes.accentColor);
         CoreS3.Display.setCursor(24, 160);
         if (growth_notice_recent(180)) {
-            const char* growth = last_growth_stage_up ? "进化" : (last_growth_level_up ? "升级" : "成长");
+            const char* growth = last_growth_stage_up ? "EVO" : (last_growth_level_up ? "LV" : "GROW");
             CoreS3.Display.printf("%s XP+%u", growth, last_growth_xp_gain);
         } else if (last_friend_peer_id != 0) {
             uint16_t nextBonus = next_rematch_xp_bonus();
             if (app_last_battle_result_valid && nextBonus > 0) {
-                CoreS3.Display.printf("#%06lX %s 再+%uXP",
+                CoreS3.Display.printf("#%06lX %s RE+%uXP",
                                       static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL),
                                       battle_outcome_label(app_last_battle_outcome),
                                       nextBonus);
             } else if (app_last_battle_result_valid) {
-                CoreS3.Display.printf("#%06lX %s 友%u",
+                CoreS3.Display.printf("#%06lX %s F%u",
                                       static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL),
                                       battle_outcome_label(app_last_battle_outcome),
                                       friendship_score());
             } else {
-                CoreS3.Display.printf("#%06lX %s 友%u",
+                CoreS3.Display.printf("#%06lX %s F%u",
                                       static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL),
                                       friend_bond_name(),
                                       friendship_score());
             }
             draw_meter(24, 170, 150, 4, friendship_score(), 100, friendship_color());
         } else {
-            CoreS3.Display.printf("包%u/%u 胜率%u%% 成长%us", backpack.count, kMaxBackpackPets,
+            CoreS3.Display.printf("BAG %u/%u WIN %u%% GROW %us", backpack.count, kMaxBackpackPets,
                                   win_rate_percent(*pet), seconds_until_growth(*pet));
             draw_meter(24, 170, 150, 4, growth_wait_progress(*pet), kGrowthIntervalSec, pet->genes.accentColor);
         }
@@ -5509,13 +5509,13 @@ static void play_trainer_intro()
     draw_game_title("训练师启动", TFT_YELLOW, rgb(8, 10, 18), 16, 20);
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(8, 10, 18));
     CoreS3.Display.setCursor(16, 56);
-    CoreS3.Display.print("训练师旋律启动中");
+    CoreS3.Display.print("TRAINER TUNE START");
     CoreS3.Display.setCursor(16, 86);
-    CoreS3.Display.print("带上伙伴准备出发");
+    CoreS3.Display.print("PET SET");
     CoreS3.Display.fillRoundRect(16, 144, 288, 32, 8, rgb(20, 24, 36));
     CoreS3.Display.drawRoundRect(16, 144, 288, 32, 8, TFT_YELLOW);
     CoreS3.Display.setCursor(28, 154);
-    CoreS3.Display.print("本地原创启动音效");
+    CoreS3.Display.print("LOCAL SOUND ONLY");
     play_scene_sound(kSoundTrainerIntro);
 }
 
@@ -5571,17 +5571,17 @@ static void draw_match_screen(const char* message)
         CoreS3.Display.drawRoundRect(14, 58, 292, 112, 8, TFT_YELLOW);
         CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
         CoreS3.Display.setCursor(24, 72);
-        CoreS3.Display.print("暂无出战伙伴");
+        CoreS3.Display.print("NO ACTIVE PET");
         CoreS3.Display.setCursor(24, 98);
         if (backpack.count == 0) {
-            CoreS3.Display.print("先拍照捕捉第一只");
+            CoreS3.Display.print("PHOTO TO CATCH FIRST");
             CoreS3.Display.setCursor(24, 122);
-            CoreS3.Display.print("右键拍照，左键背包");
+            CoreS3.Display.print("R PHOTO, L BAG");
             draw_capture_guide(188, 76, TFT_YELLOW);
         } else {
-            CoreS3.Display.print("先到背包选择伙伴");
+            CoreS3.Display.print("SELECT PET IN BAG");
             CoreS3.Display.setCursor(24, 122);
-            CoreS3.Display.print("左键背包，中键休闲");
+            CoreS3.Display.print("L BAG, M IDLE");
             uint8_t selected = backpack.selected < backpack.count ? backpack.selected : 255;
             draw_bag_slot_bar(24, 146, backpack.count, 255, selected, TFT_YELLOW);
         }
@@ -5611,16 +5611,16 @@ static void draw_match_screen(const char* message)
     CoreS3.Display.setCursor(14, 80);
     if (last_friend_peer_id != 0) {
         if (app_last_opponent_species[0] != '\0') {
-            CoreS3.Display.printf("好友%u位  对手:%s",
+            CoreS3.Display.printf("FRIENDS:%u  RIVAL:%s",
                                   local_friend_count,
                                   app_last_opponent_species);
         } else {
-            CoreS3.Display.printf("好友%u位  最近#%06lX",
+            CoreS3.Display.printf("FRIENDS:%u  RECENT#%06lX",
                                   local_friend_count,
                                   static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL));
         }
     } else {
-        CoreS3.Display.print("好友0位  寻找附近训练师");
+        CoreS3.Display.print("FRIENDS:0  FIND RIVAL");
     }
     draw_friendship_badge(212, 78, 90);
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
@@ -5633,18 +5633,18 @@ static void draw_match_screen(const char* message)
         CoreS3.Display.setCursor(30, 100);
         uint16_t nextBonus = next_rematch_xp_bonus();
         if (nextBonus > 0) {
-            CoreS3.Display.printf("上次:%s 差%+ld 再战+%uXP",
+            CoreS3.Display.printf("LAST:%s DIFF%+ld RE+%uXP",
                                   battle_outcome_label(app_last_battle_outcome),
                                   static_cast<long>(app_last_battle_score_diff), nextBonus);
         } else {
-            CoreS3.Display.printf("上次:%s 差%+ld XP+%u",
+            CoreS3.Display.printf("LAST:%s DIFF%+ld XP+%u",
                                   battle_outcome_label(app_last_battle_outcome),
                                   static_cast<long>(app_last_battle_score_diff), app_last_battle_xp);
         }
     } else if (last_friend_notice[0] != '\0') {
-        CoreS3.Display.printf("%s  友:%u", last_friend_notice, friendship_score());
+        CoreS3.Display.printf("%s  FR:%u", last_friend_notice, friendship_score());
     } else if (last_friend_peer_id != 0) {
-        CoreS3.Display.printf("共%u战  友情%u/100", friend_battle_count, friendship_score());
+        CoreS3.Display.printf("BATTLES:%u  F%u/100", friend_battle_count, friendship_score());
     } else {
         CoreS3.Display.print(friendship_prompt());
     }
@@ -5655,13 +5655,13 @@ static void draw_match_screen(const char* message)
     CoreS3.Display.setCursor(14, 142);
     uint8_t step = match_sync_step();
     if (message == nullptr) {
-        CoreS3.Display.printf("%s  0秒", match_sync_step_label(step));
+        CoreS3.Display.printf("%s  0s", match_sync_step_label(step));
     } else {
         CoreS3.Display.print(message);
     }
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
     CoreS3.Display.setCursor(14, 162);
-    CoreS3.Display.print("靠近训练机  中键休闲");
+    CoreS3.Display.print("MOVE CLOSER  M IDLE");
     draw_match_sync_meter(208, 156, step, pet->genes.accentColor);
     draw_action_footer("背包", "休闲", "拍照", pet->genes.accentColor);
     display_hold_until_ms = millis() + 6000;
@@ -5672,7 +5672,7 @@ static void draw_match_screen(const char* message)
 
 static void show_friend_action_feedback(const char* message)
 {
-    const char* notice = (message != nullptr && message[0] != '\0') ? message : "好友状态已更新";
+    const char* notice = (message != nullptr && message[0] != '\0') ? message : "FRIEND STATUS UPDATED";
     const uint16_t bg = rgb(18, 22, 30);
     CoreS3.Display.fillRoundRect(12, 150, 296, 30, 8, bg);
     CoreS3.Display.drawRoundRect(12, 150, 296, 30, 8, TFT_CYAN);
@@ -5704,7 +5704,7 @@ static void draw_release_confirm_screen()
     CoreS3.Display.setCursor(16, 40);
     CoreS3.Display.printf("%s  Lv%u", species_name(pet.genes), pet.level);
     CoreS3.Display.setCursor(16, 54);
-    CoreS3.Display.print("确认后会从本设备移除");
+    CoreS3.Display.print("REMOVE FROM THIS DEVICE");
 
     CoreS3.Display.fillRoundRect(10, 78, 300, 78, 8, rgb(26, 14, 18));
     CoreS3.Display.drawRoundRect(10, 78, 300, 78, 8, TFT_RED);
@@ -5716,7 +5716,7 @@ static void draw_release_confirm_screen()
     CoreS3.Display.setTextDatum(top_left);
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(26, 14, 18));
     CoreS3.Display.setCursor(156, 86);
-    CoreS3.Display.print("放生后不可恢复");
+    CoreS3.Display.print("CANNOT UNDO");
     draw_release_confirm_summary(156, 102, 144, pet, bag_cursor, backpack.count,
                                  bag_cursor == backpack.selected);
     draw_growth_goal_badge(156, 128, 144, pet, pet.genes.accentColor);
@@ -5724,7 +5724,7 @@ static void draw_release_confirm_screen()
     CoreS3.Display.fillRoundRect(8, 162, 304, 22, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
     CoreS3.Display.setCursor(14, 166);
-    CoreS3.Display.print("左右取消，中键确认");
+    CoreS3.Display.print("L/R CANCEL, M CONFIRM");
     draw_bag_slot_bar(196, 170, backpack.count, bag_cursor, backpack.selected, TFT_RED);
     draw_action_footer("取消", "确认", "取消", TFT_RED);
     display_hold_until_ms = millis() + 7000;
@@ -5752,7 +5752,7 @@ static void release_stored_pet()
         has_local_pet = false;
         save_backpack();
         play_scene_sound(kSoundRelease);
-        draw_idle_screen("已放生，背包为空", false);
+        draw_idle_screen("RELEASED, BAG EMPTY", false);
         return;
     }
 
@@ -5766,7 +5766,7 @@ static void release_stored_pet()
     save_backpack();
     publish_local_pet();
     play_scene_sound(kSoundRelease);
-    draw_bag_screen("已放生当前伙伴");
+    draw_bag_screen("PET RELEASED");
 }
 
 static void draw_bag_screen(const char* message)
@@ -5788,11 +5788,11 @@ static void draw_bag_screen(const char* message)
         CoreS3.Display.drawRoundRect(14, 58, 292, 112, 8, TFT_CYAN);
         CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
         CoreS3.Display.setCursor(24, 72);
-        CoreS3.Display.print("空背包 0/6");
+        CoreS3.Display.print("BAG 0/6");
         CoreS3.Display.setCursor(24, 98);
-        CoreS3.Display.print("拍照捕捉第一只伙伴");
+        CoreS3.Display.print("PHOTO TO CATCH FIRST");
         CoreS3.Display.setCursor(24, 122);
-        CoreS3.Display.print("左/中返回休闲");
+        CoreS3.Display.print("L/M BACK TO IDLE");
         draw_bag_slot_bar(24, 146, backpack.count, 255, 255, TFT_CYAN);
         draw_capture_guide(188, 76, TFT_CYAN);
         draw_action_footer("休闲", "休闲", "拍照", TFT_CYAN);
@@ -5825,9 +5825,9 @@ static void draw_bag_screen(const char* message)
 
     CoreS3.Display.fillRoundRect(178, 82, 128, 70, 8, rgb(18, 22, 30));
     CoreS3.Display.drawRoundRect(178, 82, 128, 70, 8, pet.genes.accentColor);
-    draw_labeled_meter(188, 92, "力", pet_battle_power(pet), 160, pet.genes.accentColor);
-    draw_labeled_meter(188, 112, "速", pet_battle_agility(pet), 160, pet.genes.accentColor);
-    draw_labeled_meter(188, 132, "心", pet_battle_spirit(pet), 160, pet.genes.accentColor);
+    draw_labeled_meter(188, 92, "P", pet_battle_power(pet), 160, pet.genes.accentColor);
+    draw_labeled_meter(188, 112, "A", pet_battle_agility(pet), 160, pet.genes.accentColor);
+    draw_labeled_meter(188, 132, "S", pet_battle_spirit(pet), 160, pet.genes.accentColor);
 
     CoreS3.Display.fillRoundRect(8, 156, 304, 26, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
@@ -5841,12 +5841,12 @@ static void draw_bag_screen(const char* message)
     } else if (friend_rematch_streak > 0) {
         char goal[24];
         format_growth_goal(goal, sizeof(goal), pet);
-        CoreS3.Display.printf("胜%u/%u  %s  等%us", pet.wins, pet.battles,
+        CoreS3.Display.printf("W%u/%u  %s  WAIT%us", pet.wins, pet.battles,
                               goal, seconds_until_growth(pet));
     } else {
         char goal[24];
         format_growth_goal(goal, sizeof(goal), pet);
-        CoreS3.Display.printf("胜%u/%u  率%u%%  %s", pet.wins, pet.battles,
+        CoreS3.Display.printf("W%u/%u  RATE%u%%  %s", pet.wins, pet.battles,
                               win_rate_percent(pet), goal);
     }
     if (message == nullptr) {
@@ -5895,18 +5895,18 @@ static void draw_wild_pet(const ImageTraits& traits, const RecognitionResult& re
     CoreS3.Display.setTextColor(bagFull ? TFT_RED : TFT_YELLOW, rgb(20, 20, 24));
     CoreS3.Display.setCursor(14, 164);
     if (bagFull) {
-        CoreS3.Display.print("背包已满：先放生再捕捉");
+        CoreS3.Display.print("BAG FULL: RELEASE FIRST");
     } else {
-        CoreS3.Display.printf("野外遭遇: %s  背包:%u/%u", species_name(wild_pet), backpack.count, kMaxBackpackPets);
+        CoreS3.Display.printf("WILD: %s  BAG:%u/%u", species_name(wild_pet), backpack.count, kMaxBackpackPets);
     }
     CoreS3.Display.fillRoundRect(186, 104, 120, 48, 8, rgb(18, 22, 30));
     CoreS3.Display.drawRoundRect(186, 104, 120, 48, 8, bagFull ? TFT_RED : wild_pet.accentColor);
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
     CoreS3.Display.setCursor(196, 112);
-    CoreS3.Display.printf("力%u 速%u", min<uint16_t>(99, pet_power(wild_pet)), min<uint16_t>(99, pet_agility(wild_pet)));
+    CoreS3.Display.printf("P%u A%u", min<uint16_t>(99, pet_power(wild_pet)), min<uint16_t>(99, pet_agility(wild_pet)));
     draw_element_badge(262, 108, wild_pet.element, rgb(18, 22, 30));
     CoreS3.Display.setCursor(196, 132);
-    CoreS3.Display.printf("心%u  XP+%u", min<uint16_t>(99, pet_spirit(wild_pet)), kCaptureXp);
+    CoreS3.Display.printf("S%u  XP+%u", min<uint16_t>(99, pet_spirit(wild_pet)), kCaptureXp);
     draw_bag_slot_bar(196, 144, backpack.count, 255, backpack.selected, bagFull ? TFT_RED : wild_pet.accentColor);
     draw_capture_quality_panel(8, 124, recog.presenceScore, recog.confidence);
     draw_action_footer("捕捉", "休闲", "放走", wild_pet.accentColor);
@@ -5918,31 +5918,34 @@ static void draw_wild_pet(const ImageTraits& traits, const RecognitionResult& re
 static const char* capture_failure_label(const char* reason)
 {
     if (reason == nullptr || reason[0] == '\0') {
-        return "未发现清晰目标";
+        return "NO CLEAR TARGET";
     }
-    if (strstr(reason, "背包已满") != nullptr || strcmp(reason, "识别失败") == 0) {
-        return reason;
+    if (strstr(reason, "背包已满") != nullptr) {
+        return "BAG FULL";
+    }
+    if (strcmp(reason, "识别失败") == 0) {
+        return "RECOGNITION FAIL";
     }
     if (strcmp(reason, "Background-like scene") == 0) {
-        return "背景过多，主体不清";
+        return "BUSY BACKGROUND";
     }
     if (strcmp(reason, "Model distance high") == 0) {
-        return "目标特征不稳定";
+        return "UNSTABLE TARGET";
     }
     if (strcmp(reason, "Model class ambiguous") == 0) {
-        return "目标类别不清晰";
+        return "AMBIGUOUS TARGET";
     }
     if (strcmp(reason, "Low model confidence") == 0 || strcmp(reason, "Low class confidence") == 0) {
-        return "识别信心不足";
+        return "LOW CONFIDENCE";
     }
     if (strcmp(reason, "Weak class evidence") == 0) {
-        return "主体证据不足";
+        return "WEAK EVIDENCE";
     }
     if (strcmp(reason, "Preprocess failed") == 0) {
-        return "画面处理失败";
+        return "PROC FAIL";
     }
     if (strcmp(reason, "Camera capture failed") == 0) {
-        return "相机拍照失败";
+        return "CAMERA FAIL";
     }
     return reason;
 }
@@ -5986,20 +5989,20 @@ static void draw_capture_fail(const ImageTraits& traits, const RecognitionResult
     CoreS3.Display.setCursor(16, 52);
     CoreS3.Display.printf("%s", failureReason);
     CoreS3.Display.setCursor(16, 78);
-    CoreS3.Display.print(bagFullFail ? "左键进背包" : "主体放进取景框");
+    CoreS3.Display.print(bagFullFail ? "L OPEN BAG" : "CENTER TARGET");
     CoreS3.Display.setCursor(16, 104);
-    CoreS3.Display.print(bagFullFail ? "先放生一只伙伴" : "补光并简化背景");
+    CoreS3.Display.print(bagFullFail ? "RELEASE ONE PET" : "ADD LIGHT, CLEAR BG");
     CoreS3.Display.setCursor(16, 130);
-    CoreS3.Display.print(bagFullFail ? "再拍照捕捉" : "下一步：背包 / 休闲 / 重试");
+    CoreS3.Display.print(bagFullFail ? "THEN PHOTO" : "NEXT: BAG / IDLE / RETRY");
     if (bagFullFail) {
         CoreS3.Display.fillRoundRect(184, 70, 122, 76, 8, rgb(18, 22, 30));
         CoreS3.Display.drawRoundRect(184, 70, 122, 76, 8, TFT_RED);
         CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
         CoreS3.Display.setCursor(196, 86);
-        CoreS3.Display.printf("背包 %u/%u", backpack.count, kMaxBackpackPets);
+        CoreS3.Display.printf("BAG %u/%u", backpack.count, kMaxBackpackPets);
         draw_bag_slot_bar(196, 114, backpack.count, 255, backpack.selected, TFT_RED);
         CoreS3.Display.setCursor(196, 132);
-        CoreS3.Display.print("满员");
+        CoreS3.Display.print("FULL");
     } else {
         draw_capture_guide(194, 70, TFT_RED);
         draw_capture_quality_panel(16, 148, recog.presenceScore, recog.confidence);
@@ -6033,21 +6036,21 @@ static void draw_capture_success(const SavedPet& pet)
     CoreS3.Display.drawRoundRect(10, 78, 300, 66, 8, pet.genes.accentColor);
     CoreS3.Display.setTextColor(TFT_WHITE, rgb(18, 22, 30));
     CoreS3.Display.setCursor(20, 88);
-    CoreS3.Display.printf("力%u  速%u  心%u", pet_battle_power(pet),
+    CoreS3.Display.printf("P%u  A%u  S%u", pet_battle_power(pet),
                           pet_battle_agility(pet),
                           pet_battle_spirit(pet));
     CoreS3.Display.setCursor(20, 108);
-    CoreS3.Display.printf("阶段:%s  性格:%s", stage_name(pet.stage), mood_name(pet.genes.mood));
+    CoreS3.Display.printf("STAGE:%s  MOOD:%s", stage_name(pet.stage), mood_name(pet.genes.mood));
     CoreS3.Display.setCursor(20, 128);
     char goal[24];
     format_growth_goal(goal, sizeof(goal), pet);
-    CoreS3.Display.printf("出战:%u号  %s  等%us", backpack.selected + 1, goal, seconds_until_growth(pet));
+    CoreS3.Display.printf("ACTIVE #%u  %s  WAIT%us", backpack.selected + 1, goal, seconds_until_growth(pet));
     draw_bag_slot_bar(190, 130, backpack.count, backpack.selected, backpack.selected, pet.genes.accentColor);
 
     CoreS3.Display.fillRoundRect(8, 152, 304, 26, 8, rgb(18, 22, 30));
     CoreS3.Display.setTextColor(TFT_CYAN, rgb(18, 22, 30));
     CoreS3.Display.setCursor(16, 159);
-    CoreS3.Display.printf("已加入背包 %u/%u，已设出战", backpack.count, kMaxBackpackPets);
+    CoreS3.Display.printf("BAG %u/%u  ACTIVE SET", backpack.count, kMaxBackpackPets);
     draw_action_footer("背包", "对战", "拍照", pet.genes.accentColor);
     display_hold_until_ms = millis() + 6500;
     play_scene_sound(kSoundCapture);
@@ -6099,7 +6102,7 @@ static void release_wild_pet()
 {
     has_wild_pet = false;
     play_scene_sound(kSoundRelease);
-    draw_idle_screen("已放走野生伙伴，右键拍照", false);
+    draw_idle_screen("WILD RELEASED, R PHOTO", false);
 }
 
 static uint8_t action_for_button(uint8_t button)
@@ -6249,11 +6252,11 @@ static void handle_ui_action(uint8_t action)
         if (canceledRelease) {
             play_scene_sound(kSoundCancel);
         }
-        draw_bag_screen(canceledRelease ? "已取消放生" : nullptr);
+        draw_bag_screen(canceledRelease ? "RELEASE CANCELED" : nullptr);
         break;
     }
     case kActionBackToIdle:
-        draw_idle_screen("休闲中：可拍照、背包或对战", true);
+        draw_idle_screen("IDLE: PHOTO / BAG / BATTLE", true);
         break;
     case kActionMatchBattle:
         draw_match_screen(nullptr);
@@ -6261,7 +6264,7 @@ static void handle_ui_action(uint8_t action)
     case kActionPrevPet:
         if (screen_mode != kScreenBag) {
             play_scene_sound(kSoundWarning);
-            draw_bag_screen("请先打开背包");
+            draw_bag_screen("OPEN BAG FIRST");
         } else if (backpack.count > 0) {
             bag_cursor = (bag_cursor + backpack.count - 1) % backpack.count;
             draw_bag_screen(nullptr);
@@ -6270,7 +6273,7 @@ static void handle_ui_action(uint8_t action)
     case kActionNextPet:
         if (screen_mode != kScreenBag) {
             play_scene_sound(kSoundWarning);
-            draw_bag_screen("请先打开背包");
+            draw_bag_screen("OPEN BAG FIRST");
         } else if (backpack.count > 0) {
             bag_cursor = (bag_cursor + 1) % backpack.count;
             draw_bag_screen(nullptr);
@@ -6279,11 +6282,11 @@ static void handle_ui_action(uint8_t action)
     case kActionSelectPet:
         if (screen_mode != kScreenBag) {
             play_scene_sound(kSoundWarning);
-            draw_bag_screen("请先在背包选择");
+            draw_bag_screen("SELECT IN BAG FIRST");
         } else if (valid_bag_index(bag_cursor)) {
             set_active_from_backpack(bag_cursor);
             play_scene_sound(kSoundSelect);
-            draw_idle_screen("伙伴已选中，中键进入对战", false);
+            draw_idle_screen("PET SELECTED, M BATTLE", false);
         }
         break;
     case kActionReleaseStoredPet:
@@ -6291,7 +6294,7 @@ static void handle_ui_action(uint8_t action)
             draw_release_confirm_screen();
         } else {
             play_scene_sound(kSoundWarning);
-            draw_bag_screen("请先到背包放生");
+            draw_bag_screen("RELEASE FROM BAG FIRST");
         }
         break;
     case kActionConfirmReleaseStoredPet:
@@ -6299,7 +6302,7 @@ static void handle_ui_action(uint8_t action)
             release_stored_pet();
         } else {
             play_scene_sound(kSoundWarning);
-            draw_bag_screen("请先进入放生确认");
+            draw_bag_screen("OPEN CONFIRM FIRST");
         }
         break;
     case kActionCapturePet:
@@ -6307,7 +6310,7 @@ static void handle_ui_action(uint8_t action)
             capture_wild_pet();
         } else {
             play_scene_sound(kSoundWarning);
-            draw_idle_screen("请先拍照发现伙伴", false);
+            draw_idle_screen("TAKE PHOTO FIRST", false);
         }
         break;
     case kActionReleasePet:
@@ -6315,7 +6318,7 @@ static void handle_ui_action(uint8_t action)
             release_wild_pet();
         } else {
             play_scene_sound(kSoundWarning);
-            draw_idle_screen("当前没有野生伙伴", false);
+            draw_idle_screen("NO WILD PET", false);
         }
         break;
     default:
@@ -8512,7 +8515,7 @@ static void handle_app_action()
 
 static void print_serial_control_help()
 {
-    Serial.println("serial controls: BTN L|M|R, ACT photo|bag|match|idle|prev|next|select|capture|release|confirm_release|cancel|friend|mute|unmute|toggle_mute, SAMPLE on|off [label] [scene]|label <label>|scene <scene>|status, EDGE_HINT <class> <confidence> <presence>, HUSKY_HINT <class> <confidence> <presence>, SOUND <cue>, STATUS, BAGSTATUS, SDINFO, SDPUT <path> <bytes>");
+    Serial.println("serial controls: BTN L|M|R, ACT photo|bag|match|idle|prev|next|select|capture|release|confirm_release|cancel|friend|mute|unmute|toggle_mute, SEEDPETS, SAMPLE on|off [label] [scene]|label <label>|scene <scene>|status, EDGE_HINT <class> <confidence> <presence>, HUSKY_HINT <class> <confidence> <presence>, SOUND <cue>, STATUS, ACCEPTANCE, BAGSTATUS, SDINFO, SDPUT <path> <bytes>");
 }
 
 static void print_serial_sampling_status()
@@ -8598,6 +8601,46 @@ static void print_serial_control_status()
     print_serial_external_hint_status();
 }
 
+static void print_serial_acceptance_status()
+{
+    refresh_backpack_growth(true);
+    const SavedPet* pet = selected_pet_const();
+    Serial.printf("acceptance flow=screen:%s label:%s buttons:%s/%s/%s bag:%u/%u active:%s wild:%u release:%u\n",
+                  screen_mode_name(),
+                  screen_mode_label(),
+                  button_label_for_slot(kButtonLeft),
+                  button_label_for_slot(kButtonMiddle),
+                  button_label_for_slot(kButtonRight),
+                  backpack.count,
+                  kMaxBackpackPets,
+                  pet == nullptr ? "none" : species_name(pet->genes),
+                  has_wild_pet ? 1 : 0,
+                  screen_mode == kScreenReleaseConfirm ? 1 : 0);
+    Serial.printf("acceptance battle=phase:%s label:%s peer:%06lX result:%s id:%08lX diff:%ld rematch_xp:%u\n",
+                  app_battle_phase(),
+                  app_battle_phase_label(),
+                  static_cast<unsigned long>(battle_peer_id & 0xffffffUL),
+                  app_last_battle_result_valid ? battle_outcome_label(app_last_battle_outcome) : "-",
+                  static_cast<unsigned long>(app_last_battle_id),
+                  static_cast<long>(app_last_battle_score_diff),
+                  next_rematch_xp_bonus());
+    Serial.printf("acceptance friend=recent:%06lX label:%s score:%u/100 battles:%u streak:%u goal:%s notice:%s\n",
+                  static_cast<unsigned long>(last_friend_peer_id & 0xffffffUL),
+                  friend_bond_name(),
+                  friendship_score(),
+                  friend_battle_count,
+                  friend_rematch_streak,
+                  friendship_goal_badge(),
+                  last_friend_notice[0] == '\0' ? "-" : last_friend_notice);
+    Serial.printf("acceptance runtime=sd:%u muted:%u camera:%u sampling:%u sample_label:%s sample_scene:%s\n",
+                  sd_card_present ? 1 : 0,
+                  audio_muted ? 1 : 0,
+                  camera_ok ? 1 : 0,
+                  sample_mode_enabled ? 1 : 0,
+                  sample_mode_label,
+                  sample_mode_scene);
+}
+
 static void print_serial_bag_status()
 {
     refresh_backpack_growth(true);
@@ -8618,6 +8661,55 @@ static void print_serial_bag_status()
     }
     out += "]}";
     Serial.println(out);
+}
+
+static PetGenes random_seed_pet_genes(ElementType element, uint8_t slot)
+{
+    PetGenes genes = {};
+    uint32_t seed = static_cast<uint32_t>(random(1, 0x7fffffff)) ^
+                    (static_cast<uint32_t>(millis()) << 11) ^
+                    (device_id << 3) ^
+                    (static_cast<uint32_t>(slot) * 0x45d9f3bUL);
+    uint32_t state = hash_mix(seed);
+    genes.element = element;
+    genes.species = static_cast<uint8_t>(next_rand(&state) % 3);
+    genes.mood = static_cast<uint8_t>(next_rand(&state) % 4);
+    genes.bodyScale = clamp_u8(82 + static_cast<int32_t>(next_rand(&state) % 36));
+    genes.eyeStyle = static_cast<uint8_t>(next_rand(&state) % 4);
+    genes.hornStyle = static_cast<uint8_t>(next_rand(&state) % 4);
+    genes.tailStyle = static_cast<uint8_t>(next_rand(&state) % 4);
+    genes.auraPattern = static_cast<uint8_t>(next_rand(&state) % 4);
+    genes.patternDensity = clamp_u8(2 + static_cast<int32_t>(next_rand(&state) % 7));
+    genes.accentColor = tint_color(element_accent_color(element),
+                                   static_cast<int32_t>(next_rand(&state) % 31) - 15);
+    genes.seed = seed;
+    return genes;
+}
+
+static void seed_five_element_backpack()
+{
+    const ElementType elements[5] = { kWood, kFire, kEarth, kMetal, kWater };
+    randomSeed(ESP.getEfuseMac() ^ micros() ^ millis());
+    reset_backpack();
+    backpack.count = 5;
+    backpack.selected = 0;
+    bag_cursor = 0;
+    uint32_t now = now_sec();
+    for (uint8_t i = 0; i < 5; ++i) {
+        SavedPet& pet = backpack.pets[i];
+        memset(&pet, 0, sizeof(pet));
+        pet.genes = random_seed_pet_genes(elements[i], i);
+        pet.level = 1;
+        pet.stage = 0;
+        pet.xp = 0;
+        pet.battles = 0;
+        pet.wins = 0;
+        pet.capturedAtSec = now;
+        pet.lastGrowthSec = now;
+    }
+    set_active_from_backpack(0);
+    append_app_log("seeded five element pets");
+    draw_bag_screen("已放入五行宠物");
 }
 
 static bool serial_button_slot(const String& value, uint8_t* slot)
@@ -8827,7 +8919,17 @@ static void handle_serial_control_line(String line)
         print_serial_control_status();
         return;
     }
+    if (command == "ACCEPTANCE") {
+        print_serial_acceptance_status();
+        return;
+    }
     if (command == "BAGSTATUS") {
+        print_serial_bag_status();
+        return;
+    }
+    if (command == "SEEDPETS") {
+        seed_five_element_backpack();
+        Serial.println("serial ok: SEEDPETS count=5 elements=wood,fire,earth,metal,water");
         print_serial_bag_status();
         return;
     }
@@ -9018,7 +9120,7 @@ void setup()
     }
     append_app_log("setup complete");
     play_trainer_intro();
-    draw_idle_screen("准备就绪：背包 / 对战 / 拍照", false);
+    draw_idle_screen("READY: BAG / BATTLE / PHOTO", false);
 }
 
 void loop()

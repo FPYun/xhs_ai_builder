@@ -17,8 +17,8 @@ goal can be treated as complete.
   on one board. The expected root paths are `/audio/ui/`,
   `/audio/battle/`, and `/audio/music/`.
 - Connect a phone or laptop to the board AP and open `/app`.
-- Open serial monitor at the project baud rate for `STATUS`, `ACT ...`, and
-  `SOUND ...` checks.
+- Open serial monitor at the project baud rate for `STATUS`, `ACCEPTANCE`,
+  `ACT ...`, and `SOUND ...` checks.
 
 ## Single-Board Player Flow
 
@@ -92,6 +92,8 @@ goal can be treated as complete.
   sample-debug panel.
 - Serial `STATUS` must report screen, active pet growth, friendship, recent
   battle result, button labels, and current sampling mode.
+- Serial `ACCEPTANCE` must print the compact flow, battle, friendship, and
+  runtime lines used to record the physical acceptance pass.
 - Serial `SAMPLE on negative white_wall`, `SAMPLE label plant_leaf`,
   `SAMPLE scene dark`, `SAMPLE status`, and `SAMPLE off` must update or report
   the same RAM-only sampling state shown in `/app`, without changing recognition

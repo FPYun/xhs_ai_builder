@@ -23,9 +23,16 @@ hardware platforms.
   notes.
 - Generate or refresh the draft dataset card with
   `python .\scripts\build-hf-dataset-card.py --samples-root C:\tmp\m5_vision_samples`.
+- Generate the sanitized dataset manifest draft with
+  `python .\scripts\export_hf_dataset_manifest.py --samples-root C:\tmp\m5_vision_samples --out .\release\oshw\hf-dataset-manifest.csv`.
+- Run `python .\scripts\audit_hf_dataset_publishability.py --samples-root C:\tmp\m5_vision_samples`
+  before preparing a Hugging Face upload; resolve `FAIL` items and keep
+  unresolved `PENDING` items visible in the dataset card.
 - Run `python .\scripts\audit_vision_scene_coverage.py --samples-root C:\tmp\m5_vision_samples`
   and keep missing scene coverage marked as `PENDING`.
-- For final publication, run the same check with `--strict`.
+- Run `python .\scripts\validate-sd-payload.py --payload .\sd_card_payload`
+  before copying or publishing the optional SD audio/skin/action package.
+- For final publication, run the release readiness check with `--strict`.
 - Build and record one clean compile result.
 - Flash and record COM port, MAC, hash verification, and hard reset result for
   each available board.
@@ -35,6 +42,8 @@ hardware platforms.
   `/api/v1/status`, `/api/v1/storage`, and `/api/v1/samples`.
 - Include the SD root layout and audio format: unsigned 8-bit mono PCM,
   22050 Hz, `.raw`, each file under 32768 bytes.
+- Keep malformed optional SD payloads out of public archives; the release
+  readiness checker reports this as `sd_payload_validation`.
 
 ## Do Not Publish
 

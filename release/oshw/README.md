@@ -12,6 +12,10 @@ The release kit is not complete until every required field below has evidence.
   battle acceptance records.
 - `video-shot-list.md`: short public demo script.
 - `hf-dataset-card-template.md`: dataset card for exported CoreS3 samples.
+- `hf-dataset-manifest.csv`: sanitized manifest draft with relative publish
+  paths and review status columns.
+- `delivery-notes.md`: current handoff status, build result, and pending release
+  items.
 - Photos or renders of the assembled kit, to be added later.
 - Optional enclosure or stand files, to be added later.
 
@@ -30,6 +34,13 @@ Run the advisory check before preparing a public post:
 python ..\..\scripts\check-open-release-readiness.py
 ```
 
+The advisory check also validates the optional SD audio, skin, and action
+payload. To inspect that package directly, run:
+
+```powershell
+python ..\..\scripts\validate-sd-payload.py --payload ..\..\sd_card_payload
+```
+
 Use `--strict` only for a final publication gate. The strict mode exits
 non-zero while photos, filled verification logs, or publishable dataset files
 are still pending.
@@ -45,6 +56,16 @@ python ..\..\scripts\build-hf-dataset-card.py --samples-root C:\tmp\m5_vision_sa
 
 The generated `hf-dataset-card.md` remains a draft until license and privacy
 review are complete. The readiness check keeps draft cards as `PENDING`.
+
+Before a Hugging Face upload, run the dataset publishability audit:
+
+```powershell
+python ..\..\scripts\export_hf_dataset_manifest.py --samples-root C:\tmp\m5_vision_samples --out .\hf-dataset-manifest.csv
+python ..\..\scripts\audit_hf_dataset_publishability.py --samples-root C:\tmp\m5_vision_samples
+```
+
+Resolve every `FAIL` before uploading. `PENDING` items must stay visible in the
+dataset card and release notes.
 
 ## Scene Coverage Audit
 

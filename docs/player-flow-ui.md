@@ -66,14 +66,19 @@ flowchart TD
 | CAPTURE_FAIL | 捕捉失败：localized player-facing failure reason, center framing guide or full-bag card, subject/recognition score card for normal failures, and next action hint | 背包 | 休闲 | 重试/拍照 |
 | BAG | 伙伴背包：empty first-capture card when empty; otherwise 6-slot capacity bar, cursor, active/stored state, species, level, stage, XP, five-element badge, mood, growth-boosted battle stats, wins/total battles, win rate, next evolution/level XP target, next growth countdown/progress | 放生 | 选择 | 下一只 |
 | RELEASE_CONFIRM | 放生确认：target pet avatar, five-element badge, 6-slot bag bar, current target/active slot state, species, level, irreversible action warning, release confirmation summary strip with stage/win-rate/XP rail, and next evolution/level XP target | 取消 | 确认 | 取消 |
-| MATCH | 本地匹配：active pet, no-pet preparation card when needed, pairing/connected/ready status, visible middle-exit hint, 寻/连/战 sync meter, friendship card, recent opponent/result with win/draw/loss color cue, rematch XP preview, full-width friendship meter | 背包 | 休闲 | 拍照 |
-| BATTLE CLASH | 宠物出场/三回合交锋：local and peer pet names, level/element badges, center VS badge, 力/克/心 round track, per-round impact beams, round advantage | 背包 | 休闲 | 拍照 |
-| BATTLE RESULT | 战斗结算/退场整理：result, total score delta meter, 力/克/心 round summary chips, both stats/scores, five-element badges, exit result badge, XP and friendship progress rails, recent opponent, rematch XP preview, friendship meter/hint | 背包 | 休闲 | 拍照 |
+| MATCH | 本地匹配：active pet, no-pet preparation card when needed, pairing/connected/ready status, visible middle-exit hint, F/C/B sync meter, friendship card, recent opponent/result with win/draw/loss color cue, rematch XP preview, full-width friendship meter | 背包 | 休闲 | 拍照 |
+| BATTLE CLASH | 宠物出场/三回合交锋：local and peer pet names, level/element badges, center VS badge, P/E/S round track, per-round impact beams, round advantage | 背包 | 休闲 | 拍照 |
+| BATTLE RESULT | 战斗结算/退场整理：result, total score delta meter, P/E/S round summary chips, both stats/scores, five-element badges, exit result badge, XP and friendship progress rails, recent opponent, rematch XP preview, friendship meter/hint | 背包 | 休闲 | 拍照 |
 
 The player-facing UI should use neutral wording such as 寻找对手, 配对中,
 连接就绪, 准备开战, and 交锋中. Low-level terms such as `HOST`, `CLIENT`, UDP
 role, packet layout, and peer IP belong in serial logs or developer docs, not the
 main player flow. 用户界面不显示 HOST/CLIENT。
+
+Device small-detail labels use glyph-safe ASCII because the CoreS3 small font can
+miss some Chinese glyphs and show fallback boxes. Large page titles and footer
+buttons stay Chinese, while dense status fields use short labels such as `SUBJ`,
+`REC`, `BAG`, `WIN`, `GROW`, `P/A/S`, `P1/P2`, and `F/C/B`.
 
 ## Button Text and Actions
 
@@ -109,14 +114,14 @@ main player flow. 用户界面不显示 HOST/CLIENT。
    the player to BAG when pets exist or PHOTO when the bag is empty.
 2. Pairing: the service keeps broadcasting the active pet packet while the user
    remains in MATCH or BATTLE. The player sees the current pairing step label,
-   waiting timer, opponent short ID after sync, and a three-step 寻/连/战 sync
+   waiting timer, opponent short ID after sync, and a three-step F/C/B sync
    meter instead of transport details.
 3. Clash: on a new peer packet, the UI shows 宠物出场 with both pet names,
    avatars, level/element badges, a center VS badge, and the first round
    advantage immediately. The opponent pet also plays its generated pet sound
    through the normal mute-aware route, then the local three-round clash timer
-   begins. The rounds show a 力/克/心 progress track, per-round impact beams
-   around the VS badge, current-round App JSON, and a compact ME/RIVAL score
+   begins. The rounds show a P/E/S progress track, per-round impact beams
+   around the VS badge, current-round App JSON, and a compact P1/P2 score
    plate with a center-based red/green advantage meter for each round. This gives the player visible battle process without
    changing the UDP packet.
 4. Result: after the clash timer, the local device computes score, win/draw/loss,
@@ -134,11 +139,11 @@ sequence:
 
 1. 准备开战: both pets are visible with a center VS badge and first-round advantage.
 2. 三回合交锋: power/speed, element matchup, and spirit comparison are shown
-   with different center impact visuals for each round.
+   with different center impact visuals and P1/P2 score labels for each round.
 3. 战斗结算: win/draw/loss, score, mirrored local battle ID, a settlement
-   verdict card with score-delta rail, scoring-time 力/速/心 stats, 力/克/心
-   round summary chips with 胜/负/平 labels, XP, and friendship bonus are shown.
-4. 退场整理: the player sees the compact 力/克/心 round chips again, a NEXT line
+   verdict card with score-delta rail, scoring-time P/A/S stats, P/E/S
+   round summary chips with W/L/D labels, XP, and friendship bonus are shown.
+4. 退场整理: the player sees the compact P/E/S round chips again, a NEXT line
    for BAG/IDLE/PHOTO or rematch XP, plus a device-side battle exit choice strip
    inside the footer: L 整理, M 休闲, R 捕捉. The player can then leave to BAG,
    IDLE, or PHOTO without reading a raw status table.
@@ -201,7 +206,7 @@ Recommended growth UX:
   rate, and XP rail, plus the same NEXT growth badge before the middle button
   can delete the pet.
 - BAG shows the 6-slot capacity bar, active slot, cursor slot, XP progress,
-  growth-boosted 力/速/心 battle stats, wins/total battles, win rate, next
+  growth-boosted P/A/S battle stats, wins/total battles, win rate, next
   evolution/level XP target, next waiting-growth countdown, and a thin
   waiting-growth progress meter on the same quick-read status area. A compact
   NEXT growth badge keeps the next evolution/level target visible above the
@@ -241,8 +246,8 @@ Recommended growth UX:
   action surface: current flow title, primary next action, BAG/Friends shortcuts,
   recent opponent, latest result, friendship score, and rematch XP cue.
 - BATTLE RESULT shows a settlement verdict card with result, total score
-  difference, mirrored local battle ID, and score-delta rail, plus 力/克/心 round
-  summary chips with 胜/负/平 labels, scoring-time battle stats, XP gained/progress,
+  difference, mirrored local battle ID, and score-delta rail, plus P/E/S round
+  summary chips with W/L/D labels, scoring-time battle stats, XP gained/progress,
   friendship progress, and whether the pet leveled up. `/app` adds an App battle verdict card for result,
   score difference, and battle ID, then mirrors
   the same round verdict labels as three compact chips for bench review.
@@ -254,7 +259,7 @@ Recommended growth UX:
 - App battle entry card sits between phase and matchup. It names the local
   partner, the synced or waiting opponent, and the entry status before the VS
   avatar card appears.
-- Device BATTLE CLASH shows a short 同步局 ID during pet entry so both boards can
+- Device BATTLE CLASH shows a short `IDxxxx` during pet entry so both boards can
   visually confirm they are resolving the same local battle.
 - App battle matchup card mirrors the pet-entry moment with current partner,
   opponent partner, avatars, level/element labels, and a center VS badge.

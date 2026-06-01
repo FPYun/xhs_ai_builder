@@ -141,10 +141,14 @@ Still remaining:
 - 固件会按当前屏幕可选读取 `/actions/*.csv` 的 `bob`、`sparkle`、
   `tilt`，只改变本地绘制姿态、闪光和动作线；缺失或格式错误时回退
   固件内置静态绘制。
+- `scripts/validate-sd-payload.py` 校验根资源 manifest、音频 raw
+  格式/大小、皮肤 palette 和动作 profile 的 v1 字段与取值范围。
+- `scripts/check-open-release-readiness.py` 已接入 `sd_payload_validation`，
+  发布前会把资源包结构错误标记为 `FAIL`。
 
 剩余：
 
-- 资源 manifest 还需增加校验、版本兼容和 fallback 行为字段。
+- 若后续新增第三方资源或 v2 资源格式，再补 license、checksum 和版本迁移字段。
 
 ### 6. 对战技能和回放日志
 
@@ -254,13 +258,21 @@ Still remaining:
 - 新增 `scripts/audit_vision_scene_coverage.py`，检查白墙、白纸、桌面、
   反光、暗光是否各有足够 negative 样本；发布检查会把缺失场景保持为
   `PENDING`。
+- 新增 `scripts/audit_hf_dataset_publishability.py`，发布前检查样本
+  manifest 列、类别数量、样本文件存在性、绝对路径泄露、公开来源 license
+  审核、训练报告质量、负样本场景覆盖和数据集卡草稿状态。
+- 新增 `scripts/export_hf_dataset_manifest.py`，从本地样本 manifest 生成
+  `release/oshw/hf-dataset-manifest.csv`，把本机绝对路径改成相对发布路径。
+- `scripts/check-open-release-readiness.py` 已接入
+  `hf_dataset_publishability`，当前本地样本 manifest 缺 `scene` 列时会把
+  发布包标记为 `FAIL`，防止旧格式数据集被误发布。
 
 剩余：
 
 - OSHWHub/OSHWHLab 发布包仍缺实物照片、外壳或支架、接线/装配图和实测
   视频素材。
-- Hugging Face 数据集包仍缺可发布的 CoreS3 实拍样本、manifest、license
-  确认和训练报告。
+- Hugging Face 数据集包仍缺可发布的 CoreS3 实拍样本、带 `scene` 列的
+  最新 manifest、license 确认和非 weak 训练报告。
 - 发布前必须剔除 API key、私人照片、不可再分发素材和未授权音频。
 
 ## 推荐执行顺序

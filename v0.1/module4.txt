@@ -82,3 +82,45 @@ UDP 对战包结构未被破坏。
 捕捉、背包、放生、养成、MATCH、BATTLE 基础流程仍可运行。
 CoreS3 不依赖云端即可完整体验本地玩法。
 文档准确区分“当前已实现”和“未来规划”。
+
+当前烧录交付输入（2026-06-01）
+
+烧录主程序：
+arduino_demos/04_camera_pet_battle/04_camera_pet_battle.ino
+
+建议编译命令：
+.\scripts\compile-demo.ps1 -Sketch .\arduino_demos\04_camera_pet_battle\04_camera_pet_battle.ino -BuildRoot C:\tmp\m5_arduino_build_full_flash_ready
+
+最近一次本地编译记录：
+- 程序空间：1607857 bytes（51%）。
+- 全局变量：69268 bytes（21%）。
+- 记录位置：release/oshw/verification-log.csv。
+
+已放入当前项目的可交付模块成果：
+- 捕捉识别与宠物生成：限定 8 类识别、失败门控、ObjectClass 到五行/物种映射、PetGenes 外观生成、45 个兼容视觉变体、样本训练脚本和 vision_model_data.h。
+- 采样与调试：采样模式、实时质量仪表、/app 识别调试面板、样本 manifest 导出、burst 候选帧调试。
+- 玩家流程与 UI：IDLE、PHOTO、WILD、CAPTURE_FAIL、BAG、MATCH、BATTLE、RELEASE_CONFIRM 流程，背包、放生确认、养成状态、图鉴。
+- 本地 HTTP 验收入口：/api/v1/status、/api/v1/storage、/api/v1/sampling、/api/v1/samples、/api/v1/samples/manifest、/api/v1/samples/file。
+- 串口验收入口：STATUS、ACCEPTANCE、BAGSTATUS、SAMPLE、EDGE_HINT、HUSKY_HINT、SDINFO、SDPUT。
+- 电脑和手机网页入口：电脑使用 http://127.0.0.1:8790/；手机使用 http://<电脑局域网 IPv4>:8791/。桥接网页含 AI 周边工坊、2D 形象、语音文件和本地资产保存，但不写入固件 API key。
+- SD 可选资源：声音包、皮肤 palette、动作 profile、资源 manifest 和 validate-sd-payload 校验脚本。
+- 对战增强：技能显示、三回合对战流程、RAM 回放日志、外部识别 hint 保持协议兼容。
+- 玩家可见对战分数面板使用“我方/对手”，不显示 HOST/CLIENT。
+- 实验分支：Edge Impulse/FOMO adapter、HuskyLens bridge、ESP-IDF + ESP-DL/ESP-WHO PoC skeleton。
+- 发布材料：OSHWHub/OSHWHLab release kit、Hugging Face 数据集卡草稿、脱敏 hf-dataset-manifest.csv、delivery-notes。
+
+烧录模块需要继续实测并填写：
+- 烧录端口、flash_ok。
+- /app 手机访问、/api/v1/status、/api/v1/storage、/api/v1/samples。
+- 串口 ACCEPTANCE、STATUS、BAGSTATUS、SAMPLE status、SDINFO 输出。
+- SD 卡挂载、声音/皮肤/动作资源回退。
+- 白墙、白纸、桌面、反光、暗光 negative 捕捉。
+- 明确居中物体 positive 捕捉。
+- 单板 MATCH/BATTLE 基础流程。
+- 双板 MATCH/BATTLE 流程。
+
+不需要烧录模块处理的事项：
+- 不修改 pet_model.h、vision_types.h、ui_types.h、battle_protocol.h。
+- 不修改 BattlePetPacket、背包存储格式或 UDP 包结构。
+- 不接入云端 API，不恢复语音识别，不新增依赖。
+- Hugging Face 公开上传仍需样本 license/privacy 审核和更多 CoreS3 实拍样本。

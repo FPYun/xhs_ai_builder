@@ -37,7 +37,7 @@ sample files under the operator's sample root.
 ## Manifest Summary
 
 - Rows: 2417
-- Columns: path, class, source, width, height, sha1
+- Columns: path, class, source, scene, width, height, sha1
 
 ## Manifest Class Counts
 
@@ -64,7 +64,14 @@ sample files under the operator's sample root.
 
 | Value | Count |
 | --- | ---: |
-| not recorded | 0 |
+| `bright` | 213 |
+| `dark` | 420 |
+| `desktop` | 690 |
+| `glare` | 129 |
+| `low_texture` | 11 |
+| `unknown` | 650 |
+| `white_paper` | 273 |
+| `white_wall` | 31 |
 
 ## Training Report Summary
 
@@ -88,19 +95,28 @@ sample files under the operator's sample root.
 
 ## Scene Evaluation
 
-No scene evaluation is recorded in the current report.
+| Scene | Samples | Accuracy | False positive rate |
+| --- | ---: | ---: | ---: |
+| `bright` | 0 | not recorded | not recorded |
+| `dark` | 0 | not recorded | not recorded |
+| `desktop` | 0 | not recorded | not recorded |
+| `glare` | 0 | not recorded | not recorded |
+| `low_texture` | 0 | not recorded | not recorded |
+| `unknown` | 0 | not recorded | not recorded |
+| `white_paper` | 0 | not recorded | not recorded |
+| `white_wall` | 0 | not recorded | not recorded |
 
 ## Required Negative Scene Coverage
 
-Coverage status: `INCOMPLETE` from `missing`.
+Coverage status: `INCOMPLETE` from `manifest`.
 
 | Scene | Negative samples | Total samples | Status |
 | --- | ---: | ---: | --- |
-| `white_wall` | 0 | 0 | PENDING |
-| `white_paper` | 0 | 0 | PENDING |
-| `desktop` | 0 | 0 | PENDING |
-| `glare` | 0 | 0 | PENDING |
-| `dark` | 0 | 0 | PENDING |
+| `white_wall` | 30 | 31 | PASS |
+| `white_paper` | 6 | 273 | PENDING |
+| `desktop` | 146 | 690 | PASS |
+| `glare` | 9 | 129 | PENDING |
+| `dark` | 66 | 420 | PASS |
 
 ## Privacy And License Review
 
