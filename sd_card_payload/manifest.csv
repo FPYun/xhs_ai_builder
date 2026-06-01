@@ -1,0 +1,32 @@
+path,size_bytes,format,sample_rate_hz,purpose
+/audio/ui/idle.raw,7497,u8_mono_raw,22050,idle cue
+/audio/ui/photo.raw,5070,u8_mono_raw,22050,photo cue
+/audio/ui/wild.raw,10583,u8_mono_raw,22050,wild pet cue
+/audio/ui/bag.raw,5291,u8_mono_raw,22050,backpack cue
+/audio/ui/capture.raw,9702,u8_mono_raw,22050,capture cue
+/audio/ui/release.raw,7056,u8_mono_raw,22050,release cue
+/audio/ui/select.raw,2535,u8_mono_raw,22050,select cue
+/audio/ui/warning.raw,5733,u8_mono_raw,22050,warning cue
+/audio/ui/level_up.raw,7497,u8_mono_raw,22050,level up cue
+/audio/ui/cancel.raw,3637,u8_mono_raw,22050,cancel cue
+/audio/battle/match.raw,8818,u8_mono_raw,22050,battle match cue
+/audio/battle/clash.raw,4630,u8_mono_raw,22050,battle clash cue
+/audio/battle/friend.raw,8598,u8_mono_raw,22050,friend cue
+/audio/battle/win.raw,8378,u8_mono_raw,22050,win cue
+/audio/battle/draw.raw,7055,u8_mono_raw,22050,draw cue
+/audio/battle/lose.raw,11025,u8_mono_raw,22050,lose cue
+/audio/battle/exit.raw,5953,u8_mono_raw,22050,battle exit cue
+/audio/music/intro.raw,15435,u8_mono_raw,22050,intro music cue
+/skins/manifest.csv,578,csv,0,optional skin addon manifest
+/skins/palettes/default.csv,46,csv,0,default skin palette
+/skins/palettes/wood.csv,44,csv,0,wood skin palette
+/skins/palettes/fire.csv,43,csv,0,fire skin palette
+/skins/palettes/earth.csv,45,csv,0,earth skin palette
+/skins/palettes/metal.csv,46,csv,0,metal skin palette
+/skins/palettes/water.csv,45,csv,0,water skin palette
+/actions/manifest.csv,483,csv,0,optional action addon manifest
+/actions/idle.csv,33,csv,0,idle action drawing profile
+/actions/wild.csv,33,csv,0,wild action drawing profile
+/actions/bag.csv,33,csv,0,backpack action drawing profile
+/actions/battle_clash.csv,33,csv,0,battle action drawing profile
+/actions/result.csv,33,csv,0,result action drawing profile

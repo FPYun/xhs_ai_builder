@@ -1,0 +1,12 @@
+{
+  "bounding_boxes": [
+    {
+      "label": "cup_bottle_water",
+      "value": 0.74,
+      "x": 18,
+      "y": 14,
+      "width": 64,
+      "height": 64
+    }
+  ]
+}

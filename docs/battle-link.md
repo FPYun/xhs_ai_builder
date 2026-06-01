@@ -138,18 +138,31 @@ Interface change request:
 
 ## Local App Entry Recommendation
 
-Phase 1 should use USB serial commands only:
+Phase 1 App control should use the implemented local Wi-Fi HTTP API:
 
-- `BTN 0`, `BTN 1`, `BTN 2` for left/middle/right input.
-- `ACT <UiAction>` for debug-only direct action injection.
-- `STATUS` for current screen, selected pet, link counters, MAC, and role.
-- Current firmware already prints boot identity and MATCH/BATTLE runtime status
-  logs for hardware verification.
+- The phone manually joins the CoreS3 `M5PET-xxxxxx` AP.
+- The App uses the phone's Wi-Fi gateway as the default base URL, normally
+  `http://10.23.<subnet>.1`.
+- `GET /api/v1/status` confirms `ssid`, `deviceId`, and `httpBaseUrl`.
+- `POST /api/v1/action?type=photo|bag|match|idle|next|select|release|confirm_release|cancel`
+  reuses the existing UI actions.
+- Poll `/api/v1/status` every 1-2 seconds and refresh immediately after an
+  action POST.
+- Keep App HTTP management separate from the UDP `BattlePetPacket` battle
+  payload.
 
-Phase 2 can add local network HTTP or UDP status/control once the board-to-board
-link is stable.
+USB serial remains the desktop/debug path for flashing, boot identity logs,
+runtime MATCH/BATTLE diagnostics, sample capture, and local control tooling.
+The current firmware accepts `BTN L/M/R`, `ACT <type>`, `SOUND <cue>`,
+`STATUS`, and `HELP`;
+`ACT` uses the same guarded action parser as `/app`, so serial testing cannot
+skip BAG/WILD/RELEASE_CONFIRM state checks. `STATUS` prints the current screen,
+three-button labels, active pet growth line, friendship summary, and recent
+battle result for bench validation. `SOUND` calls `play_scene_sound`, so it
+keeps the same `kAudioMuted` behavior as normal gameplay cues.
 
-Phase 3 can evaluate BLE only after USB and LAN workflows are proven.
+BLE and LAN discovery are future options for pairing/discovery only. ESP-NOW is
+not a phone App control path because normal phones cannot join ESP-NOW directly.
 
 ## 2026-05-29 Compile and Flash Record
 
@@ -177,19 +190,19 @@ Latest observed ports:
 ```text
 COM7 | USB serial device | USB VID:PID=303A:1001 SER=44:1B:F6:E3:9B:60
 Arduino CLI board list reported COM7 as Serial Port (USB).
-COM8 was not present.
+COM8 was not present because the second ESP32-S3 board was not onsite.
 ```
 
 Flash record:
 
 | Board label | Expected COM | Expected MAC | Write | Hash verify | Hard reset | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| Known board | COM8 | 44:1B:F6:E3:9A:FC | Not run | Not run | Not run | COM8 absent |
+| Known board | COM8 | 44:1B:F6:E3:9A:FC | Not run | Not run | Not run | Second ESP32-S3 board not onsite |
 | Known board | COM7 | 44:1B:F6:E3:9B:60 | Success | Success | Success | Flashed after adding MATCH/BATTLE serial status logs; boot serial printed `board=COM7 role=HOST state=DISCOVERING ap=M5PET-E39B60` |
 
 Dual-board test result:
 
-- Full dual-board test was not executed because COM8 was not enumerated.
+- Full dual-board test was not executed because the second ESP32-S3 board was not onsite.
 - COM7 single-board boot was verified on serial:
   `battle mac=44:1B:F6:E3:9B:60 board=COM7 role=HOST state=DISCOVERING ap=M5PET-E39B60 udp=42105`.
 - Required checks once both boards are connected:

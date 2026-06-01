@@ -1,0 +1,6 @@
+path,type,version,screen,element,description
+/actions/idle.csv,profile,1,idle,any,Idle bob and sparkle drawing parameters
+/actions/wild.csv,profile,1,wild,any,Wild encounter bob and sparkle drawing parameters
+/actions/bag.csv,profile,1,bag,any,Backpack card bob and sparkle drawing parameters
+/actions/battle_clash.csv,profile,1,battle,any,Battle clash bob and sparkle drawing parameters
+/actions/result.csv,profile,1,battle,any,Result celebration bob and sparkle drawing parameters

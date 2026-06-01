@@ -1,0 +1,7 @@
+path,type,version,element,species,variant,description
+/skins/palettes/default.csv,palette,1,any,any,any,Default fallback palette manifest entry
+/skins/palettes/wood.csv,palette,1,wood,any,any,Wood green accent palette placeholder
+/skins/palettes/fire.csv,palette,1,fire,any,any,Fire warm accent palette placeholder
+/skins/palettes/earth.csv,palette,1,earth,any,any,Earth stone accent palette placeholder
+/skins/palettes/metal.csv,palette,1,metal,any,any,Metal highlight palette placeholder
+/skins/palettes/water.csv,palette,1,water,any,any,Water blue accent palette placeholder

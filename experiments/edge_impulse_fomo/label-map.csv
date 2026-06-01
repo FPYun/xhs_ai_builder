@@ -1,0 +1,10 @@
+id,class,element_hint,species_bias,notes
+0,plant_leaf,Wood,0,leaf plant houseplant flower tree
+1,food_fruit,Wood/Earth,1,fruit apple banana orange strawberry
+2,paper_book,Wood/Earth,2,book paper notebook
+3,electronics_screen,Metal/Water,1,monitor television laptop phone tablet
+4,metal_key_coin,Metal,2,key coin small metal object
+5,fabric_cloth,Earth/Wood,0,clothing textile towel fabric
+6,cup_bottle_water,Water,2,bottle cup drinkware water bottle
+7,toy_figure,Fire/Metal,1,toy doll figurine small figure
+8,negative,None,None,white wall paper desktop glare dark bright far object

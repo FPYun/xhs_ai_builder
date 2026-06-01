@@ -1,0 +1,7 @@
+{
+  "classification": {
+    "plant_leaf": 0.82,
+    "food_fruit": 0.08,
+    "negative": 0.05
+  }
+}

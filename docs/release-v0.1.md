@@ -13,7 +13,8 @@ Release date: 2026-05-29
 - Release confirmation flow.
 - Growth, XP, win rate, and battle stat records.
 - Wi-Fi AP + UDP battle transport.
-- BATTLE clash/result flow with muted-capable scene sound effects.
+- BATTLE pet-entry, three-round clash, result, and exit flow with muted-capable
+  scene sound effects.
 - Local RAM-only rematch friendship XP bonus.
 - Public type split for pet, vision, UI, and battle protocol boundaries.
 - Productization planning docs for App, cloud, SD card, dataset, and community directions.
@@ -44,6 +45,7 @@ Release date: 2026-05-29
 - Select a pet from the backpack.
 - Enter MATCH on both boards.
 - Confirm player UI uses neutral MATCH states, not HOST/CLIENT role labels.
-- Confirm BATTLE shows a clash phase and then a result appears.
+- Confirm BATTLE shows pet entry, three clash rounds with an advantage meter,
+  result settlement with total score delta meter, and exit flow.
 - For engineering diagnosis only, confirm serial logs still report role and packet counters.
 - Confirm BAG shows level, XP, element, active/stored status, win count, battle count, and win rate.

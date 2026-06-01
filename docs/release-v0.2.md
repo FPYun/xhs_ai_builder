@@ -21,6 +21,7 @@ Release date: 2026-05-29
 - BATTLE clash/result flow, XP reward rules, and RAM-only rematch friendship bonus planning.
 - Mute-capable local sound effect planning; no voice recognition.
 - Productization roadmap for App, desktop MVP, cloud hints, SD storage, dataset/training, and community features.
+- Local HTTP management API and Safari `/app` phone page for the first phone companion workflow.
 - Protocol documentation and interface-change templates that explicitly avoid modifying `BattlePetPacket` without architecture review.
 - Desktop-side `scripts/train_vision_feature_model.py` for generating `vision_model_data.h`.
 
@@ -41,7 +42,7 @@ Release date: 2026-05-29
 
 - Recognition quality depends on the current 8-class feature model and heuristic fallback.
 - SD card sample/log/model management is documented but not implemented as a runtime dependency.
-- App management protocol is planned, but not implemented in firmware.
+- The first local App HTTP management API and Safari `/app` page are implemented, but BLE discovery and cloud sync are not.
 - Cloud hints remain behind reserved no-op/local extension points.
 - Rematch friendship is RAM-only unless a future storage interface change is approved.
 - Full dual-board physical validation still requires two connected CoreS3 boards.

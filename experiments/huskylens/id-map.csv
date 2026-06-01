@@ -1,0 +1,9 @@
+huskylens_id,class,enabled,notes
+1,plant_leaf,0,train only after collecting project-specific examples
+2,food_fruit,0,train only after collecting project-specific examples
+3,paper_book,0,train only after collecting project-specific examples
+4,electronics_screen,0,train only after collecting project-specific examples
+5,metal_key_coin,0,train only after collecting project-specific examples
+6,fabric_cloth,0,train only after collecting project-specific examples
+7,cup_bottle_water,0,train only after collecting project-specific examples
+8,toy_figure,0,train only after collecting project-specific examples

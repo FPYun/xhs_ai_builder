@@ -91,17 +91,25 @@ The v0.1 battle module replaced ESP-NOW with Wi-Fi SoftAP + UDP:
 - The host learns the client IP from the first UDP packet.
 - Both boards exchange `BattlePetPacket` structures.
 
-This design is easier to debug than ESP-NOW because the screen can show role, connection state, IP, TX count, RX count, and send failures.
+This design is easier to debug than ESP-NOW because serial logs and developer
+documentation can keep role, connection state, IP, TX count, RX count, and send
+failure details. The player-facing screen keeps neutral pairing and battle
+wording instead of showing transport internals.
 
 The player-facing battle flow is:
 
-1. `MATCH`: exchange active pet packets.
-2. `BATTLE` clash: show a short local battle-process screen.
-3. `BATTLE` result: show both stats, scores, result, XP gain, and rematch hint.
+1. `MATCH`: exchange active pet packets while the player can still exit.
+   The screen shows a neutral 寻/连/战 sync meter.
+2. `BATTLE` entry: show both pets entering the fight with a center VS badge.
+3. `BATTLE` clash: show immediate first-round power/speed advantage, then three
+   local rounds for power/speed, element, and spirit with a red/green advantage meter.
+4. `BATTLE` result: show both stats, scores, result, XP gain, and rematch hint.
+5. `BATTLE` exit: give the player BAG, IDLE, and PHOTO exits.
 
 Repeated battles against the same recent peer add a small local friendship XP
-bonus. The friendship state is RAM-only in v0.1, so no public storage or UDP
-layout change is required.
+bonus. The friendship table is saved in a separate `wuxingfr` Preferences
+namespace, so no `SavedPet`, `BackpackStorage`, or UDP layout change is
+required.
 
 ## Persistent Data
 

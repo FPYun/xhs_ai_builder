@@ -1,9 +1,9 @@
 # Public Interfaces and Protocols
 
 This document records the stable public boundaries for the CoreS3 Wuxing pet
-demo. It describes the current offline firmware only. SD card storage, mobile
-app control, cloud recognition, and LLM calls are reserved extension points, not
-implemented features.
+demo. The current firmware includes local Wi-Fi HTTP management for the iPhone
+companion App. SD card storage, cloud recognition, BLE discovery, and LLM calls
+remain reserved extension points, not implemented runtime requirements.
 
 The current firmware has no voice-recognition protocol. Sound effects are local
 UI feedback and may be muted by firmware state.
@@ -139,21 +139,22 @@ Receive-side packet validation currently rejects packets when:
 Invalid inbound packets are ignored. The current protocol has no explicit
 negative acknowledgement or remote error packet.
 
-## Future App Management Protocol Proposal
+## App HTTP Management API
 
-Do not extend `BattlePetPacket` for App, desktop, cloud, SD, or dataset
-management. If productization needs external control or export, add a separate
-management protocol with its own magic, version, command enum, and payload
-rules.
+The implemented iPhone companion App uses a separate local HTTP management API
+while the phone is connected to the CoreS3 AP. It does not extend or reinterpret
+`BattlePetPacket`.
 
-Recommended first transport stages:
+Implemented endpoint details live in `docs/app-http-api.md`.
 
-- Phase 1: USB serial for local desktop tooling.
-- Phase 2: Wi-Fi HTTP/UDP for local App access; keep UDP battle packets
+Transport stages:
+
+- Current App v0.1: Wi-Fi HTTP for local App access; keep UDP battle packets
   separate from management packets.
-- Phase 3: BLE or LAN discovery after resource and stability review.
+- Desktop tooling can still use USB serial later for logs and samples.
+- BLE or LAN discovery remain future work after resource and stability review.
 
-Candidate management commands:
+Implemented management actions:
 
 - `GET_STATUS`: device state, active screen, mute state, heap, and firmware
   version.

@@ -1,0 +1,8 @@
+item,qty,required,notes
+M5Stack CoreS3,1,yes,main device with ESP32-S3 camera display buttons speaker
+microSD card,1,optional,needed for audio/sample payload experiments
+USB-C cable,1,yes,flash and serial logs
+Second ESP32-S3/CoreS3 board,1,optional,needed for dual-board battle verification
+HuskyLens module,1,optional,experiment only not mainline dependency
+Jumper wires,4,optional,only for external module experiments
+Printed stand or enclosure,1,optional,future OSHWHub/OSHWHLab release asset
